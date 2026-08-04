@@ -1,45 +1,41 @@
-AVILEZ BURGUER — COMO PUBLICAR (site completo, fases 1–10)
-===========================================================
+AVILEZ BURGUER — FLUXO OFICIAL: Projeto Local -> GitHub -> Vercel
+=================================================================
 
-Este projeto JÁ é o site completo:
-  - "/"            -> Landing Page (Hero, Cardápio, Categorias, Avaliações, Footer)
-  - "/pedido/ID"   -> Rastreamento do pedido (cliente)
-  - "/admin"       -> Painel administrativo (Pedidos, Produtos, Estoque)
-Não existe nenhuma tela "Fase 1 / Estrutura base".
+Repositório oficial (ÚNICA fonte de verdade):
+  https://github.com/navicpublis/avilez-burguer
+Deploy: Vercel conectado ao GitHub (deploy automático a cada push na branch principal).
+
+Rotas do app:
+  "/"            -> Landing Page completa (Hero, Cardápio, Categorias, Avaliações, Footer)
+  "/pedido/ID"   -> Rastreamento do pedido (cliente)
+  "/admin"       -> Painel administrativo (Pedidos, Produtos, Estoque)
 
 --------------------------------------------------
-1) RODAR E CONFERIR LOCALMENTE (antes de publicar)
+1) CONFERIR LOCALMENTE (antes de subir)
 --------------------------------------------------
   npm install
-  npm run build      # gera a pasta dist/  (tem que terminar sem erro)
-  npm run preview    # abre em http://localhost:4173
-Abra "/" no navegador: tem que aparecer a Landing (O MELHOR DA COSTA VERDE).
-Se aqui aparece a Landing mas na Netlify aparece "Fase 1",
-o problema é a FONTE do deploy (repositório/pasta antiga), não este código.
+  npm run build      # gera dist/ — tem que terminar SEM erro
+  npm run preview    # abre http://localhost:4173
+Abra "/": tem que aparecer a Landing (O MELHOR DA COSTA VERDE).
 
 --------------------------------------------------
-2) PUBLICAR NA NETLIFY
+2) PUBLICAR (GitHub -> Vercel)
 --------------------------------------------------
-OPÇÃO A — Deploy manual (mais direto):
-  1. npm install && npm run build   (gera dist/)
-  2. Netlify -> site -> aba "Deploys" -> arraste a PASTA dist/ (não o zip, não a raiz).
-  Publish directory = dist   |   Build command = npm run build
-
-OPÇÃO B — Deploy por repositório Git:
-  ATENÇÃO: a Netlify publica o que está NO REPOSITÓRIO, não este .zip.
-  Se o site ainda mostra a Fase 1, é porque o repositório ainda tem o código antigo.
-  1. Substitua TODO o conteúdo do repositório pelos arquivos deste projeto.
-  2. git add -A && git commit -m "Projeto completo (fases 1-10)" && git push
-  3. Na Netlify: Deploys -> "Trigger deploy" -> "Clear cache and deploy site".
-  Settings: Build command = npm run build  |  Publish directory = dist
-
-O arquivo netlify.toml e o public/_redirects já vêm configurados
-(fallback SPA "/* -> /index.html 200"), essencial p/ /admin e /pedido/:id.
+  git add -A
+  git commit -m "sua mensagem"
+  git push            # a Vercel detecta o push e faz o deploy sozinho
+A Vercel reconhece o Vite automaticamente:
+  Build Command = npm run build   |   Output Directory = dist
+O vercel.json (na raiz) já cuida do fallback de SPA (rewrites p/ index.html),
+essencial p/ /admin e /pedido/:id funcionarem no acesso direto e no refresh.
 
 --------------------------------------------------
-3) SE AINDA APARECER A FASE 1
+3) SE ALGO PARECER ANTIGO
 --------------------------------------------------
-  - Limpe cache do build local:   rm -rf dist node_modules/.vite
-  - Force refresh no navegador:   Ctrl+Shift+R
-  - Na Netlify use "Clear cache and deploy site".
-  - Confirme que o repositório conectado à Netlify é o que tem ESटE código.
+  - Confirme que deu git push na branch que a Vercel acompanha (main/master).
+  - Vercel -> Deployments: veja se o último deploy é o seu commit.
+  - Se preciso, "Redeploy" no painel da Vercel.
+  - Cache do navegador: Ctrl+Shift+R.
+
+Obs.: netlify.toml e public/_redirects são de um fluxo antigo (Netlify) e a Vercel
+os ignora — foram mantidos apenas por segurança e não atrapalham.
