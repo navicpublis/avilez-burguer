@@ -1,0 +1,6 @@
+# Avilez Burguer
+User-agent: *
+Allow: /
+Disallow: /admin
+
+Sitemap: https://avilezburguer.com.br/sitemap.xml

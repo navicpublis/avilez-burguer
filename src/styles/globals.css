@@ -1,0 +1,137 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =========================================================================
+   AVILEZ BURGUER — Tokens de tema
+   Paleta: preto predominante + amarelo de marca + branco.
+   Valores em HSL (consumidos pelo tailwind.config via hsl(var(--token))).
+   ========================================================================= */
+@layer base {
+  :root {
+    /* Fundo: preto profundo. Texto: branco levemente quente. */
+    --background: 0 0% 6.5%; /* ~#111 base, um toque mais escuro p/ profundidade */
+    --foreground: 0 0% 98%;
+
+    /* Superfícies (cards, popovers) — um degrau acima do fundo */
+    --card: 0 0% 9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 9%;
+    --popover-foreground: 0 0% 98%;
+
+    /* Primária = amarelo de marca (#FFC107). Texto sobre ela = preto. */
+    --primary: 45 100% 51%;
+    --primary-foreground: 0 0% 7%;
+
+    /* Secundária = superfície neutra escura para ações discretas */
+    --secondary: 0 0% 14%;
+    --secondary-foreground: 0 0% 98%;
+
+    /* Muted = detalhes em cinza (textos de apoio, legendas) */
+    --muted: 0 0% 14%;
+    --muted-foreground: 0 0% 64%;
+
+    /* Accent = realce sutil em hover de itens neutros */
+    --accent: 0 0% 16%;
+    --accent-foreground: 0 0% 98%;
+
+    /* Bordas e inputs — cinza discreto, quase imperceptível */
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
+
+    /* Anel de foco = amarelo de marca */
+    --ring: 45 100% 51%;
+
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+    /* Safe areas do iPhone */
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Títulos usam a display face por padrão */
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display;
+  }
+
+  /* Foco visível e consistente (acessibilidade) */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  /* Scrollbar discreta */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(0 0% 22%);
+    border-radius: 9999px;
+    border: 2px solid hsl(var(--background));
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(0 0% 30%);
+  }
+
+  /* Seleção de texto na cor de marca */
+  ::selection {
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+  }
+}
+
+/* Respeita quem prefere menos movimento */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* =========================================================================
+   Utilitários da marca
+   ========================================================================= */
+@layer utilities {
+  /* Padding de safe-area para elementos fixos (header/menu) */
+  .pt-safe {
+    padding-top: max(env(safe-area-inset-top), 0px);
+  }
+  .pb-safe {
+    padding-bottom: max(env(safe-area-inset-bottom), 0px);
+  }
+
+  /* Trava de rolagem de fundo quando um overlay está aberto */
+  .no-scroll {
+    overflow: hidden;
+  }
+}
+
+/* Fase 4: reserva espaço no fim da página para a barra fixa do carrinho */
+body {
+  padding-bottom: var(--cart-bar-space, 0px);
+}
