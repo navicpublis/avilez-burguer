@@ -54,6 +54,14 @@
   html {
     -webkit-text-size-adjust: 100%;
     -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+  }
+
+  /* Âncoras do menu (Início/Cardápio/Localização/Contato) param logo
+     abaixo do header fixo, sem ficar escondidas atrás dele. */
+  section[id],
+  footer[id] {
+    scroll-margin-top: 5rem;
   }
 
   body {

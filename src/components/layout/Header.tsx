@@ -7,6 +7,7 @@ import { Logo } from "@/components/layout/Logo";
 import { MobileMenu } from "@/components/layout/MobileMenu";
 import { useScrolled } from "@/hooks";
 import { siteConfig } from "@/services/site-config";
+import { useShop } from "@/store/shop-context";
 
 /**
  * Tema do header quando está no TOPO (transparente):
@@ -33,6 +34,7 @@ const navLinkTop = cva("", {
 export function Header({ topTheme = "dark" }: HeaderProps) {
   const scrolled = useScrolled(8);
   const [menuOpen, setMenuOpen] = useState(false);
+  const { openCategories } = useShop();
 
   // No topo com tema claro, o conteudo e preto (legivel sobre amarelo).
   const onLightTop = !scrolled && topTheme === "light";
@@ -74,6 +76,7 @@ export function Header({ topTheme = "dark" }: HeaderProps) {
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={openCategories}
               className={cn(
                 "hidden h-10 items-center justify-center rounded-lg px-4 text-sm font-semibold transition-colors duration-hover ease-brand active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background md:inline-flex",
                 onLightTop

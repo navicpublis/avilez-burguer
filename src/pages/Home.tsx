@@ -3,6 +3,7 @@ import {
   CategorySection,
   Reviews,
   DeliveryArea,
+  Localizacao,
   FinalCta,
 } from "@/components/sections";
 import { burgers, combos, drinks, desserts } from "@/services/menu-data";
@@ -82,6 +83,7 @@ export function Home() {
 
       <Reviews />
       <DeliveryArea />
+      <Localizacao />
       <FinalCta />
     </>
   );

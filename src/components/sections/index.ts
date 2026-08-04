@@ -3,3 +3,4 @@ export { CategorySection } from "./CategorySection";
 export { Reviews } from "./Reviews";
 export { DeliveryArea } from "./DeliveryArea";
 export { FinalCta } from "./FinalCta";
+export { Localizacao } from "./Localizacao";
