@@ -41,8 +41,6 @@ export const ADDONS: Addon[] = [
 /** Sugestoes rapidas para o campo de observacoes. */
 export const OBS_SUGGESTIONS = ["Sem cebola", "Pouco molho", "Bem passado", "Sem picles"];
 
-/** Taxa de entrega (estrutura — sera dinamica por bairro no futuro). */
-export const DELIVERY_FEE = 6.0;
 
 /** Cupons (estrutura). */
 export const COUPONS: Record<string, { type: "pct"; value: number; label: string }> = {

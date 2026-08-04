@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Check, ChevronLeft, MessageCircle } from "lucide-react";
+import { Check, ChevronLeft, MessageCircle, Loader2 } from "lucide-react";
 
 import {
   Sheet,
@@ -23,6 +23,7 @@ import {
   whatsappUrl,
 } from "@/services/orders";
 import { useShop } from "@/store/shop-context";
+import { useNeighborhoods } from "@/hooks";
 
 const EMPTY: CustomerData = {
   name: "",
@@ -36,15 +37,15 @@ const EMPTY: CustomerData = {
 };
 
 const PAYMENTS: PaymentMethod[] = ["PIX", "Dinheiro", "Cartão na Entrega"];
-const ETA = "35 a 45 minutos";
 
 type Errors = Partial<Record<keyof CustomerData, string>>;
 
 /**
- * CheckoutSheet — checkout em bottom sheet quase tela cheia.
- * 4 passos (Dados → Entrega → Pagamento → Resumo) → Confirmar Pedido:
- * gera ID + link de rastreio, salva o pedido, abre o WhatsApp com a
- * mensagem pronta e mostra a tela de sucesso. Nunca troca de página.
+ * CheckoutSheet — checkout em bottom sheet quase tela cheia, 4 passos:
+ *   1) Dados do cliente  2) Endereço  3) Pagamento  4) Resumo
+ * A taxa de entrega vem do BAIRRO escolhido (Select). Ao confirmar: gera ID +
+ * link de rastreio, salva o pedido, abre o WhatsApp com a mensagem pronta e
+ * mostra a tela de sucesso. Nunca troca de página.
  */
 export function CheckoutSheet() {
   const {
@@ -54,46 +55,80 @@ export function CheckoutSheet() {
     unitPrice,
     subtotal,
     fee,
+    feeReady,
     discount,
     total,
     coupon,
+    applyCoupon,
+    neighborhoodId,
+    setNeighborhoodId,
     customer,
     saveCustomer,
     clear,
   } = useShop();
+
+  const neighborhoods = useNeighborhoods();
 
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<CustomerData>(customer ?? EMPTY);
   const [errors, setErrors] = useState<Errors>({});
   const [payment, setPayment] = useState<PaymentMethod>("PIX");
   const [changeFor, setChangeFor] = useState("");
+  const [notes, setNotes] = useState("");
+  const [couponCode, setCouponCode] = useState(coupon ?? "");
+  const [couponNotice, setCouponNotice] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [placed, setPlaced] = useState<Order | null>(null);
 
-  // ao abrir, começa no passo 1 e recarrega dados salvos do cliente
+  // ao abrir: passo 1, recarrega dados salvos e tenta casar o bairro salvo
   useEffect(() => {
-    if (checkoutOpen) {
-      setStep(1);
-      setForm(customer ?? EMPTY);
-      setErrors({});
-      setPlaced(null);
+    if (!checkoutOpen) return;
+    setStep(1);
+    setForm(customer ?? EMPTY);
+    setErrors({});
+    setPlaced(null);
+    setSubmitting(false);
+    setCouponCode(coupon ?? "");
+    setCouponNotice(null);
+    if (customer?.neighborhood) {
+      const match = neighborhoods.find(
+        (n) => n.name.toLowerCase() === customer.neighborhood.toLowerCase()
+      );
+      if (match) setNeighborhoodId(match.id);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checkoutOpen, customer]);
 
   const set = (k: keyof CustomerData, v: string) =>
     setForm((f) => ({ ...f, [k]: v }));
 
-  function validateCustomer(): boolean {
+  function selectNeighborhood(id: string) {
+    setNeighborhoodId(id || null);
+    const n = neighborhoods.find((x) => x.id === id);
+    setForm((f) => ({ ...f, neighborhood: n?.name ?? "" }));
+    setErrors((e) => ({ ...e, neighborhood: undefined }));
+  }
+
+  function validateStep1(): boolean {
     const e: Errors = {};
     if (!form.name.trim()) e.name = "Informe seu nome";
     const digits = form.phone.replace(/\D/g, "");
     if (!form.phone.trim()) e.phone = "Informe seu WhatsApp";
     else if (digits.length < 10) e.phone = "Número incompleto";
-    if (!form.street.trim()) e.street = "Informe a rua";
-    if (!form.number.trim()) e.number = "Nº";
-    if (!form.neighborhood.trim()) e.neighborhood = "Informe o bairro";
     setErrors(e);
     return Object.keys(e).length === 0;
   }
+
+  function validateStep2(): boolean {
+    const e: Errors = {};
+    if (!form.street.trim()) e.street = "Informe a rua";
+    if (!form.number.trim()) e.number = "Nº";
+    if (!neighborhoodId || !feeReady) e.neighborhood = "Selecione um bairro";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  }
+
+  const selectedHood = neighborhoods.find((n) => n.id === neighborhoodId) ?? null;
 
   const orderItems: OrderItem[] = useMemo(
     () =>
@@ -113,7 +148,22 @@ export function CheckoutSheet() {
     [cart, unitPrice]
   );
 
+  function handleCoupon() {
+    if (!couponCode.trim()) return;
+    const ok = applyCoupon(couponCode);
+    setCouponNotice(
+      ok
+        ? { ok: true, msg: "Cupom aplicado com sucesso." }
+        : { ok: false, msg: "Cupom inválido ou expirado." }
+    );
+    window.setTimeout(() => setCouponNotice(null), 3000);
+  }
+
+  const canConfirm = feeReady && cart.length > 0 && !submitting;
+
   function confirm() {
+    if (!canConfirm) return;
+    setSubmitting(true);
     const id = generateOrderId();
     const order: Order = {
       id,
@@ -128,6 +178,7 @@ export function CheckoutSheet() {
       discount,
       coupon,
       total,
+      notes: notes.trim() || undefined,
       trackingUrl: trackingUrl(id),
     };
     saveCustomer(form);
@@ -136,9 +187,12 @@ export function CheckoutSheet() {
     window.open(whatsappUrl(order), "_blank");
     clear();
     setStep(5);
+    setSubmitting(false);
   }
 
   const success = step === 5 && placed;
+  const feeLabel = feeReady ? (fee > 0 ? formatCurrency(fee) : "Grátis") : "A calcular";
+  const stepTitles = ["Seus dados", "Endereço", "Pagamento", "Resumo"];
 
   return (
     <Sheet open={checkoutOpen} onOpenChange={(o: boolean) => !o && closeCheckout()}>
@@ -149,90 +203,105 @@ export function CheckoutSheet() {
               type="button"
               aria-label="Voltar"
               onClick={() => setStep((s) => s - 1)}
-              className="flex size-8 items-center justify-center rounded-full bg-secondary text-foreground transition-colors hover:bg-accent"
+              className="flex size-8 items-center justify-center rounded-full bg-secondary text-foreground transition-colors hover:bg-accent active:scale-95"
             >
               <ChevronLeft className="size-5" />
             </button>
           )}
-          <SheetTitle>{success ? "Quase lá!" : "Finalizar pedido"}</SheetTitle>
+          <SheetTitle>{success ? "Quase lá!" : stepTitles[step - 1]}</SheetTitle>
         </SheetHeader>
 
-        {/* Progresso (some na tela de sucesso) */}
         {!success && (
-          <div className="flex gap-1.5 px-6 pb-3">
-            {[1, 2, 3, 4].map((s) => (
-              <span
-                key={s}
-                className={cn(
-                  "h-1 flex-1 rounded-full transition-colors",
-                  s <= step ? "bg-primary" : "bg-secondary"
-                )}
-              />
-            ))}
+          <div className="px-6 pb-3">
+            <div className="flex gap-1.5">
+              {[1, 2, 3, 4].map((s) => (
+                <span
+                  key={s}
+                  className={cn(
+                    "h-1 flex-1 rounded-full transition-colors duration-hover",
+                    s <= step ? "bg-primary" : "bg-secondary"
+                  )}
+                />
+              ))}
+            </div>
+            <div className="mt-1.5 text-[0.72rem] font-semibold uppercase tracking-wider text-muted-foreground">
+              Passo {step} de 4
+            </div>
           </div>
         )}
 
-        <SheetBody>
+        <SheetBody className="overflow-x-hidden">
           {/* PASSO 1 — Dados do cliente */}
           {step === 1 && (
-            <div className="flex flex-col gap-3.5">
+            <div className="flex flex-col gap-4">
               <Field label="Nome" error={errors.name}>
-                <input className={inputCls(errors.name)} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Seu nome" />
+                <input
+                  className={inputCls(errors.name)}
+                  value={form.name}
+                  onChange={(e) => set("name", e.target.value)}
+                  placeholder="Seu nome completo"
+                  autoComplete="name"
+                />
               </Field>
-              <Field label="WhatsApp" error={errors.phone}>
-                <input className={inputCls(errors.phone)} value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="(21) 99999-9999" inputMode="tel" />
+              <Field label="Telefone (WhatsApp)" error={errors.phone}>
+                <input
+                  className={inputCls(errors.phone)}
+                  value={form.phone}
+                  onChange={(e) => set("phone", e.target.value)}
+                  placeholder="(21) 99999-9999"
+                  inputMode="tel"
+                  autoComplete="tel"
+                />
               </Field>
-              <div className="grid grid-cols-[1fr_5rem] gap-3">
+            </div>
+          )}
+
+          {/* PASSO 2 — Endereço */}
+          {step === 2 && (
+            <div className="flex flex-col gap-4">
+              <div className="grid grid-cols-[1fr_5.5rem] gap-3">
                 <Field label="Rua" error={errors.street}>
-                  <input className={inputCls(errors.street)} value={form.street} onChange={(e) => set("street", e.target.value)} placeholder="Rua / Av." />
+                  <input className={inputCls(errors.street)} value={form.street} onChange={(e) => set("street", e.target.value)} placeholder="Rua / Avenida" autoComplete="address-line1" />
                 </Field>
                 <Field label="Número" error={errors.number}>
                   <input className={inputCls(errors.number)} value={form.number} onChange={(e) => set("number", e.target.value)} placeholder="123" inputMode="numeric" />
                 </Field>
               </div>
               <Field label="Complemento (opcional)">
-                <input className={inputCls()} value={form.complement} onChange={(e) => set("complement", e.target.value)} placeholder="Apto, bloco..." />
+                <input className={inputCls()} value={form.complement} onChange={(e) => set("complement", e.target.value)} placeholder="Apto, bloco, casa..." />
               </Field>
+
               <Field label="Bairro" error={errors.neighborhood}>
-                <input className={inputCls(errors.neighborhood)} value={form.neighborhood} onChange={(e) => set("neighborhood", e.target.value)} placeholder="Seu bairro" />
+                <div className="relative">
+                  <select
+                    className={cn(selectCls(errors.neighborhood), "appearance-none pr-10")}
+                    value={neighborhoodId ?? ""}
+                    onChange={(e) => selectNeighborhood(e.target.value)}
+                  >
+                    <option value="" disabled>
+                      Selecione seu bairro
+                    </option>
+                    {neighborhoods.map((n) => (
+                      <option key={n.id} value={n.id}>
+                        {n.name} · {n.fee > 0 ? formatCurrency(n.fee) : "Grátis"}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronLeft className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 -rotate-90 text-muted-foreground" />
+                </div>
+                {selectedHood && (
+                  <p className="mt-1.5 text-[0.8rem] text-muted-foreground">
+                    Taxa {selectedHood.fee > 0 ? formatCurrency(selectedHood.fee) : "grátis"} · entrega em {selectedHood.avgTime}
+                  </p>
+                )}
               </Field>
+
               <Field label="Ponto de referência (opcional)">
                 <input className={inputCls()} value={form.reference} onChange={(e) => set("reference", e.target.value)} placeholder="Perto de..." />
               </Field>
               <Field label="CEP (opcional)">
-                <input className={inputCls()} value={form.cep} onChange={(e) => set("cep", e.target.value)} placeholder="00000-000" inputMode="numeric" />
+                <input className={inputCls()} value={form.cep} onChange={(e) => set("cep", e.target.value)} placeholder="00000-000" inputMode="numeric" autoComplete="postal-code" />
               </Field>
-            </div>
-          )}
-
-          {/* PASSO 2 — Entrega */}
-          {step === 2 && (
-            <div className="flex flex-col gap-4">
-              <div className="rounded-lg border border-border bg-secondary p-4">
-                <div className="mb-1 text-[0.78rem] font-bold uppercase tracking-wider text-muted-foreground">
-                  Entregar em
-                </div>
-                <p className="text-[0.95rem] leading-relaxed text-foreground">
-                  {form.street}, {form.number}
-                  {form.complement ? ` — ${form.complement}` : ""}
-                  <br />
-                  {form.neighborhood}
-                  {form.reference ? (
-                    <>
-                      <br />
-                      <span className="text-muted-foreground">Ref.: {form.reference}</span>
-                    </>
-                  ) : null}
-                </p>
-              </div>
-              <div className="flex items-center justify-between rounded-lg border border-border bg-secondary px-4 py-3.5">
-                <span className="text-[0.9rem] text-muted-foreground">Tempo estimado</span>
-                <span className="font-display font-bold">{ETA}</span>
-              </div>
-              <div className="flex items-center justify-between rounded-lg border border-border bg-secondary px-4 py-3.5">
-                <span className="text-[0.9rem] text-muted-foreground">Taxa de entrega</span>
-                <span className="font-display font-bold">{formatCurrency(fee)}</span>
-              </div>
             </div>
           )}
 
@@ -250,14 +319,14 @@ export function CheckoutSheet() {
                     type="button"
                     onClick={() => setPayment(p)}
                     className={cn(
-                      "flex items-center justify-between rounded-lg border bg-secondary px-4 py-3.5 text-left transition-colors",
+                      "flex items-center justify-between rounded-lg border bg-secondary px-4 py-3.5 text-left transition-colors active:scale-[0.99]",
                       on ? "border-primary" : "border-border hover:bg-accent"
                     )}
                   >
                     <span className="font-semibold">{p}</span>
                     <span
                       className={cn(
-                        "flex size-5 items-center justify-center rounded-full border-2",
+                        "flex size-5 items-center justify-center rounded-full border-2 transition-colors",
                         on ? "border-primary bg-primary" : "border-border"
                       )}
                     >
@@ -266,6 +335,7 @@ export function CheckoutSheet() {
                   </button>
                 );
               })}
+
               {payment === "Dinheiro" && (
                 <div className="mt-2">
                   <label className="mb-1.5 block text-[0.85rem] font-semibold">Troco para quanto?</label>
@@ -283,6 +353,16 @@ export function CheckoutSheet() {
                   A chave PIX será enviada na confirmação pelo WhatsApp.
                 </p>
               )}
+
+              <div className="mt-3">
+                <label className="mb-1.5 block text-[0.85rem] font-semibold">Observações (opcional)</label>
+                <textarea
+                  className={cn(inputCls(), "h-24 resize-none py-2.5")}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Alguma observação para a cozinha ou a entrega?"
+                />
+              </div>
             </div>
           )}
 
@@ -303,9 +383,32 @@ export function CheckoutSheet() {
                   {it.obs && <p className="mt-0.5 text-[0.8rem] italic text-muted-foreground">“{it.obs}”</p>}
                 </div>
               ))}
-              <div className="mt-1 flex flex-col gap-2">
+
+              <div className="mt-1 flex gap-2">
+                <input
+                  value={couponCode}
+                  onChange={(e) => setCouponCode(e.target.value)}
+                  placeholder="Cupom (ex.: AVILEZ10)"
+                  className={cn(inputCls(), "uppercase placeholder:normal-case")}
+                />
+                <button
+                  type="button"
+                  onClick={handleCoupon}
+                  disabled={!couponCode.trim()}
+                  className="h-12 shrink-0 rounded-md border border-border bg-secondary px-4 text-[0.85rem] font-bold text-foreground transition-colors hover:bg-accent active:scale-[0.98] disabled:opacity-50"
+                >
+                  Aplicar
+                </button>
+              </div>
+              {couponNotice && (
+                <p className={cn("text-xs font-medium", couponNotice.ok ? "text-emerald-400" : "text-red-400")}>
+                  {couponNotice.msg}
+                </p>
+              )}
+
+              <div className="mt-2 flex flex-col gap-2">
                 <Row label="Subtotal" value={formatCurrency(subtotal)} muted />
-                <Row label="Entrega" value={formatCurrency(fee)} muted />
+                <Row label="Taxa de entrega" value={feeLabel} muted />
                 {discount > 0 && (
                   <Row label={`Desconto (${coupon})`} value={`− ${formatCurrency(discount)}`} className="text-emerald-400" />
                 )}
@@ -314,9 +417,11 @@ export function CheckoutSheet() {
                   <span>{formatCurrency(total)}</span>
                 </div>
               </div>
+
               <p className="mt-1 text-[0.8rem] text-muted-foreground">
                 Pagamento: <span className="text-foreground">{payment}</span>
                 {payment === "Dinheiro" && changeFor ? ` (troco p/ ${changeFor})` : ""}
+                {selectedHood ? ` · Entrega em ${selectedHood.avgTime}` : ""}
               </p>
             </div>
           )}
@@ -324,7 +429,7 @@ export function CheckoutSheet() {
           {/* PASSO 5 — Sucesso */}
           {success && placed && (
             <div className="flex flex-col items-center gap-4 py-6 text-center">
-              <span className="flex size-16 items-center justify-center rounded-full bg-primary">
+              <span className="flex size-16 animate-scale-in items-center justify-center rounded-full bg-primary">
                 <MessageCircle className="size-8 text-primary-foreground" />
               </span>
               <div>
@@ -349,23 +454,34 @@ export function CheckoutSheet() {
 
         <SheetFooter>
           {step === 1 && (
-            <button type="button" onClick={() => validateCustomer() && setStep(2)} className={ctaCls}>
+            <button type="button" onClick={() => validateStep1() && setStep(2)} className={ctaCls}>
               Continuar
             </button>
           )}
           {step === 2 && (
-            <button type="button" onClick={() => setStep(3)} className={ctaCls}>
+            <button type="button" onClick={() => validateStep2() && setStep(3)} className={ctaCls}>
               Continuar
             </button>
           )}
           {step === 3 && (
             <button type="button" onClick={() => setStep(4)} className={ctaCls}>
-              Continuar
+              Revisar pedido
             </button>
           )}
           {step === 4 && (
-            <button type="button" onClick={confirm} className={ctaCls}>
-              Confirmar Pedido · {formatCurrency(total)}
+            <button
+              type="button"
+              onClick={confirm}
+              disabled={!canConfirm}
+              className={cn(ctaCls, "gap-2 disabled:opacity-60")}
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="size-5 animate-spin" /> Enviando...
+                </>
+              ) : (
+                <>Confirmar Pedido · {formatCurrency(total)}</>
+              )}
             </button>
           )}
           {success && placed && (
@@ -380,7 +496,7 @@ export function CheckoutSheet() {
               <button
                 type="button"
                 onClick={closeCheckout}
-                className="h-12 rounded-lg border-[1.5px] border-border font-bold text-foreground transition-colors hover:bg-secondary"
+                className="h-12 rounded-lg border-[1.5px] border-border font-bold text-foreground transition-colors hover:bg-secondary active:scale-[0.99]"
               >
                 Voltar ao início
               </button>
@@ -394,11 +510,18 @@ export function CheckoutSheet() {
 
 // ---------- helpers de UI ----------
 const ctaCls =
-  "flex h-14 w-full items-center justify-center rounded-lg bg-primary font-bold text-primary-foreground transition-[background-color,transform] duration-hover ease-brand hover:bg-brand-yellow-soft active:scale-[0.99]";
+  "flex h-14 w-full items-center justify-center rounded-lg bg-primary font-bold text-primary-foreground transition-[background-color,transform] duration-hover ease-brand hover:bg-brand-yellow-soft active:scale-[0.99] disabled:pointer-events-none";
 
+/** Inputs com fonte 16px (text-base) para não disparar zoom no iOS. */
 function inputCls(error?: string) {
   return cn(
-    "h-12 w-full rounded-md border bg-secondary px-3.5 text-[0.95rem] text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25",
+    "h-12 w-full rounded-md border bg-secondary px-3.5 text-base text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25",
+    error ? "border-red-500/70" : "border-border focus-visible:border-primary"
+  );
+}
+function selectCls(error?: string) {
+  return cn(
+    "h-12 w-full rounded-md border bg-secondary px-3.5 text-base text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25",
     error ? "border-red-500/70" : "border-border focus-visible:border-primary"
   );
 }

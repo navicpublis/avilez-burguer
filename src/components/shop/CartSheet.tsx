@@ -9,6 +9,7 @@ import {
   SheetBody,
   SheetFooter,
 } from "@/components/ui";
+import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/format";
 import { findProduct, findAddon } from "@/services/menu-data";
 import { useShop } from "@/store/shop-context";
@@ -30,6 +31,7 @@ export function CartSheet() {
     unitPrice,
     subtotal,
     fee,
+    feeReady,
     discount,
     total,
     coupon,
@@ -39,12 +41,17 @@ export function CartSheet() {
   } = useShop();
 
   const [code, setCode] = useState(coupon ?? "");
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ ok: boolean; msg: string } | null>(null);
 
   function handleCoupon() {
+    if (!code.trim()) return;
     const ok = applyCoupon(code);
-    setNotice(ok ? "Cupom aplicado 🎉" : "Cupom inválido");
-    window.setTimeout(() => setNotice(null), 2500);
+    setNotice(
+      ok
+        ? { ok: true, msg: "Cupom aplicado com sucesso." }
+        : { ok: false, msg: "Cupom inválido ou expirado." }
+    );
+    window.setTimeout(() => setNotice(null), 3000);
   }
 
   const empty = cart.length === 0;
@@ -77,7 +84,10 @@ export function CartSheet() {
                   .filter(Boolean)
                   .join(", ");
                 return (
-                  <div key={idx} className="flex gap-3.5 border-b border-border py-4 last:border-0">
+                  <div
+                    key={idx}
+                    className="flex animate-fade-up gap-3.5 border-b border-border py-4 last:border-0"
+                  >
                     <div className="size-14 shrink-0 overflow-hidden rounded-md bg-primary">
                       {p.image ? (
                         <img src={p.image} alt="" className="h-full w-full object-cover" />
@@ -134,12 +144,22 @@ export function CartSheet() {
                 <button
                   type="button"
                   onClick={handleCoupon}
-                  className="h-11 rounded-md border border-border bg-secondary px-4 text-[0.85rem] font-bold text-foreground transition-colors hover:bg-accent"
+                  disabled={!code.trim()}
+                  className="h-11 shrink-0 rounded-md border border-border bg-secondary px-4 text-[0.85rem] font-bold text-foreground transition-colors hover:bg-accent active:scale-[0.98] disabled:opacity-50"
                 >
                   Aplicar
                 </button>
               </div>
-              {notice && <p className="mt-2 text-xs text-muted-foreground">{notice}</p>}
+              {notice && (
+                <p
+                  className={cn(
+                    "mt-2 text-xs font-medium",
+                    notice.ok ? "text-emerald-400" : "text-red-400"
+                  )}
+                >
+                  {notice.msg}
+                </p>
+              )}
 
               {/* Totais */}
               <div className="mt-4 flex flex-col gap-2">
@@ -149,7 +169,9 @@ export function CartSheet() {
                 </div>
                 <div className="flex items-center justify-between text-[0.92rem] text-muted-foreground">
                   <span>Taxa de entrega</span>
-                  <span>{formatCurrency(fee)}</span>
+                  <span>
+                    {feeReady ? (fee > 0 ? formatCurrency(fee) : "Grátis") : "A calcular"}
+                  </span>
                 </div>
                 {discount > 0 && (
                   <div className="flex items-center justify-between text-[0.92rem] text-emerald-400">

@@ -4,3 +4,4 @@ export { useReveal } from "./use-reveal";
 export { useOrders, useOrder } from "./use-orders";
 export { useCatalog } from "./use-catalog";
 export { useStock } from "./use-stock";
+export { useNeighborhoods } from "./use-neighborhoods";

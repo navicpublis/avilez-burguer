@@ -42,6 +42,32 @@ export const TIMELINE_LABELS: Record<OrderStatus, string> = {
 
 export const ALL_STATUSES: OrderStatus[] = ["recebido", "confirmado", "producao", "entrega", "entregue", "cancelado"];
 
+/**
+ * Próximo status no fluxo operacional (avanço de 1 clique).
+ * entregue e cancelado não avançam (retornam null).
+ */
+export function nextStatus(status: OrderStatus): OrderStatus | null {
+  const i = STATUS_FLOW.indexOf(status);
+  if (i < 0 || i >= STATUS_FLOW.length - 1) return null;
+  return STATUS_FLOW[i + 1];
+}
+
+/** Rótulo do botão principal de avanço, conforme o status atual. */
+export function advanceLabel(status: OrderStatus): string | null {
+  switch (status) {
+    case "recebido":
+      return "Confirmar Pedido";
+    case "confirmado":
+      return "Iniciar Produção";
+    case "producao":
+      return "Saiu para Entrega";
+    case "entrega":
+      return "Marcar como Entregue";
+    default:
+      return null; // entregue / cancelado: sem botão principal
+  }
+}
+
 /** Normaliza status legado/desconhecido para "recebido". */
 export function normalizeStatus(raw: string | undefined): OrderStatus {
   if (raw && (ALL_STATUSES as string[]).includes(raw)) return raw as OrderStatus;

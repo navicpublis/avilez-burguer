@@ -1,7 +1,9 @@
 import type { Order } from "./orders";
+import type { CustomerData } from "./orders";
 import {
   type OrderStatus,
   normalizeStatus,
+  nextStatus,
 } from "./order-status";
 
 /**
@@ -31,6 +33,8 @@ export interface StatusEvent {
 export interface ManagedOrder extends Omit<Order, "status"> {
   status: OrderStatus;
   history: StatusEvent[];
+  /** Motivo do cancelamento (quando status = "cancelado"). */
+  cancelReason?: string;
 }
 
 // ---------- persistência ----------
@@ -50,13 +54,13 @@ function writeRaw(list: (Order | ManagedOrder)[]): void {
   }
 }
 
-function normalize(o: Order & { history?: StatusEvent[] }): ManagedOrder {
+function normalize(o: Order & { history?: StatusEvent[]; cancelReason?: string }): ManagedOrder {
   const status = normalizeStatus(o.status);
   const history: StatusEvent[] =
     o.history && o.history.length
       ? o.history
       : [{ status, at: o.createdAt || new Date().toISOString() }];
-  return { ...o, status, history };
+  return { ...o, status, history, cancelReason: o.cancelReason };
 }
 
 // ---------- API pública ----------
@@ -80,6 +84,39 @@ export function updateStatus(id: string, status: OrderStatus): void {
   order.status = status;
   order.history = [...order.history, { status, at: new Date().toISOString() }];
   list[idx] = order;
+  writeRaw(list);
+  broadcast();
+}
+
+/** Avança o pedido para o próximo status do fluxo (botão de 1 clique). */
+export function advanceStatus(id: string): void {
+  const current = getOrder(id);
+  if (!current) return;
+  const next = nextStatus(current.status);
+  if (!next) return;
+  updateStatus(id, next);
+}
+
+/** Cancela o pedido registrando o motivo. Mantém todo o histórico. */
+export function cancelOrder(id: string, reason: string): void {
+  const list = readRaw().map((o) => normalize(o));
+  const idx = list.findIndex((o) => o.id === id);
+  if (idx < 0) return;
+  const order = list[idx];
+  order.status = "cancelado";
+  order.cancelReason = reason.trim() || "Sem motivo informado";
+  order.history = [...order.history, { status: "cancelado", at: new Date().toISOString() }];
+  list[idx] = order;
+  writeRaw(list);
+  broadcast();
+}
+
+/** Edita os dados do cliente/entrega de um pedido (ação "Editar"). */
+export function updateOrderCustomer(id: string, customer: CustomerData): void {
+  const list = readRaw().map((o) => normalize(o));
+  const idx = list.findIndex((o) => o.id === id);
+  if (idx < 0) return;
+  list[idx] = { ...list[idx], customer };
   writeRaw(list);
   broadcast();
 }

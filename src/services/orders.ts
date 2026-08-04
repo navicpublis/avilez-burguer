@@ -44,6 +44,8 @@ export interface Order {
   discount: number;
   coupon: string | null;
   total: number;
+  /** Observações gerais do pedido (opcional). Salvo no pedido. */
+  notes?: string;
   trackingUrl: string;
 }
 
@@ -143,6 +145,14 @@ export function buildWhatsAppMessage(order: Order): string {
     "💰 Forma de pagamento:",
     "",
     paymentLine,
+  ];
+
+  // Observações gerais do pedido (quando houver)
+  if (order.notes && order.notes.trim()) {
+    parts.push("", DIVIDER, "", "📝 Observações:", "", order.notes.trim());
+  }
+
+  parts.push(
     "",
     DIVIDER,
     "",
@@ -154,8 +164,8 @@ export function buildWhatsAppMessage(order: Order): string {
     "",
     "📲 Acompanhar pedido:",
     "",
-    order.trackingUrl,
-  ];
+    order.trackingUrl
+  );
 
   return parts.join("\n");
 }

@@ -11,9 +11,9 @@ import {
 import {
   findProduct,
   findAddon,
-  DELIVERY_FEE,
   COUPONS,
 } from "@/services/menu-data";
+import { getNeighborhood } from "@/services/neighborhoods-store";
 import type { CustomerData } from "@/services/orders";
 
 /** Uma linha do carrinho (produto + adicionais + observacao + quantidade). */
@@ -93,9 +93,15 @@ interface ShopValue {
   count: number;
   unitPrice: (item: CartItem) => number;
   subtotal: number;
+  /** Taxa de entrega do bairro selecionado (0 enquanto não há bairro). */
   fee: number;
+  /** true quando um bairro ativo foi escolhido (senão a taxa é "A calcular"). */
+  feeReady: boolean;
   discount: number;
   total: number;
+  /** Bairro de entrega selecionado (id do neighborhoods-store). */
+  neighborhoodId: string | null;
+  setNeighborhoodId: (id: string | null) => void;
   // cupom
   coupon: string | null;
   applyCoupon: (code: string) => boolean;
@@ -122,6 +128,7 @@ const ShopContext = createContext<ShopValue | null>(null);
 export function ShopProvider({ children }: { children: ReactNode }) {
   const [cart, dispatch] = useReducer(cartReducer, [], loadCart);
   const [coupon, setCoupon] = useState<string | null>(null);
+  const [neighborhoodId, setNeighborhoodId] = useState<string | null>(null);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [productId, setProductId] = useState<string | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
@@ -157,7 +164,10 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   const value = useMemo<ShopValue>(() => {
     const count = cart.reduce((s, i) => s + i.qty, 0);
     const subtotal = cart.reduce((s, i) => s + unitPrice(i) * i.qty, 0);
-    const fee = cart.length ? DELIVERY_FEE : 0;
+    // Taxa só existe depois que o cliente escolhe um bairro ATIVO.
+    const nb = getNeighborhood(neighborhoodId);
+    const feeReady = !!nb && nb.active;
+    const fee = feeReady ? nb!.fee : 0;
     const c = coupon ? COUPONS[coupon] : undefined;
     const discount = c ? (c.type === "pct" ? (subtotal * c.value) / 100 : c.value) : 0;
     const total = Math.max(0, subtotal + fee - discount);
@@ -168,13 +178,19 @@ export function ShopProvider({ children }: { children: ReactNode }) {
         dispatch({ type: "add", item: { id, qty, addons, obs: obs.trim() } }),
       setQty: (index, qty) => dispatch({ type: "setQty", index, qty }),
       remove: (index) => dispatch({ type: "remove", index }),
-      clear: () => dispatch({ type: "clear" }),
+      clear: () => {
+        dispatch({ type: "clear" });
+        setNeighborhoodId(null);
+      },
       count,
       unitPrice,
       subtotal,
       fee,
+      feeReady,
       discount,
       total,
+      neighborhoodId,
+      setNeighborhoodId,
       coupon,
       applyCoupon: (code) => {
         const up = code.toUpperCase().trim();
@@ -211,7 +227,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       },
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cart, coupon, categoriesOpen, productId, cartOpen, checkoutOpen, customer]);
+  }, [cart, coupon, neighborhoodId, categoriesOpen, productId, cartOpen, checkoutOpen, customer]);
 
   return <ShopContext.Provider value={value}>{children}</ShopContext.Provider>;
 }
