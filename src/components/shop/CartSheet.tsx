@@ -10,6 +10,7 @@ import {
   SheetFooter,
 } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { useSettings } from "@/hooks";
 import { formatCurrency } from "@/utils/format";
 import { findProduct, findAddon } from "@/services/menu-data";
 import { useShop } from "@/store/shop-context";
@@ -39,6 +40,7 @@ export function CartSheet() {
     openCategories,
     openCheckout,
   } = useShop();
+  const { storeOpen } = useSettings();
 
   const [code, setCode] = useState(coupon ?? "");
   const [notice, setNotice] = useState<{ ok: boolean; msg: string } | null>(null);
@@ -49,7 +51,7 @@ export function CartSheet() {
     setNotice(
       ok
         ? { ok: true, msg: "Cupom aplicado com sucesso." }
-        : { ok: false, msg: "Cupom inválido ou expirado." }
+        : { ok: false, msg: "Cupom incorreto ou indisponível." }
     );
     window.setTimeout(() => setNotice(null), 3000);
   }
@@ -138,7 +140,7 @@ export function CartSheet() {
                 <input
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
-                  placeholder="Cupom (ex.: AVILEZ10)"
+                  placeholder="Cupom de desconto"
                   className="h-11 flex-1 rounded-md border border-border bg-secondary px-3.5 text-sm uppercase text-foreground placeholder:normal-case placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none"
                 />
                 <button
@@ -211,10 +213,11 @@ export function CartSheet() {
               </button>
               <button
                 type="button"
-                onClick={openCheckout}
-                className="h-[3.25rem] rounded-lg bg-primary font-bold text-primary-foreground transition-[background-color,transform] duration-hover ease-brand hover:bg-brand-yellow-soft active:scale-[0.99]"
+                onClick={storeOpen ? openCheckout : undefined}
+                disabled={!storeOpen}
+                className="h-[3.25rem] rounded-lg bg-primary font-bold text-primary-foreground transition-[background-color,transform] duration-hover ease-brand hover:bg-brand-yellow-soft active:scale-[0.99] disabled:pointer-events-none disabled:opacity-50"
               >
-                Finalizar Pedido
+                {storeOpen ? "Finalizar Pedido" : "Loja fechada"}
               </button>
             </div>
           )}

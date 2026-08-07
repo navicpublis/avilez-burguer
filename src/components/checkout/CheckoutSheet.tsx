@@ -23,7 +23,7 @@ import {
   whatsappUrl,
 } from "@/services/orders";
 import { useShop } from "@/store/shop-context";
-import { useNeighborhoods } from "@/hooks";
+import { useNeighborhoods, useSettings } from "@/hooks";
 
 const EMPTY: CustomerData = {
   name: "",
@@ -68,6 +68,7 @@ export function CheckoutSheet() {
   } = useShop();
 
   const neighborhoods = useNeighborhoods();
+  const { storeOpen } = useSettings();
 
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<CustomerData>(customer ?? EMPTY);
@@ -154,12 +155,12 @@ export function CheckoutSheet() {
     setCouponNotice(
       ok
         ? { ok: true, msg: "Cupom aplicado com sucesso." }
-        : { ok: false, msg: "Cupom inválido ou expirado." }
+        : { ok: false, msg: "Cupom incorreto ou indisponível." }
     );
     window.setTimeout(() => setCouponNotice(null), 3000);
   }
 
-  const canConfirm = feeReady && cart.length > 0 && !submitting;
+  const canConfirm = feeReady && cart.length > 0 && !submitting && storeOpen;
 
   function confirm() {
     if (!canConfirm) return;
@@ -388,7 +389,7 @@ export function CheckoutSheet() {
                 <input
                   value={couponCode}
                   onChange={(e) => setCouponCode(e.target.value)}
-                  placeholder="Cupom (ex.: AVILEZ10)"
+                  placeholder="Cupom de desconto"
                   className={cn(inputCls(), "uppercase placeholder:normal-case")}
                 />
                 <button
@@ -467,6 +468,11 @@ export function CheckoutSheet() {
             <button type="button" onClick={() => setStep(4)} className={ctaCls}>
               Revisar pedido
             </button>
+          )}
+          {step === 4 && !storeOpen && (
+            <p className="mb-2 rounded-md bg-red-500/10 px-3 py-2 text-center text-sm font-semibold text-red-300">
+              Loja fechada no momento — não é possível finalizar agora.
+            </p>
           )}
           {step === 4 && (
             <button

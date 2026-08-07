@@ -4,3 +4,4 @@ export { Reviews } from "./Reviews";
 export { DeliveryArea } from "./DeliveryArea";
 export { FinalCta } from "./FinalCta";
 export { Localizacao } from "./Localizacao";
+export { StoreClosedBanner } from "./StoreClosedBanner";

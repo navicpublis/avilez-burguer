@@ -1,7 +1,7 @@
 import { Clock, Bike, MessageCircle } from "lucide-react";
 
 import { Container, SectionHead, Reveal } from "@/components/ui";
-import { neighborhoods } from "@/services/reviews-data";
+import { useNeighborhoods } from "@/hooks";
 import { siteConfig } from "@/services/site-config";
 
 /**
@@ -9,6 +9,7 @@ import { siteConfig } from "@/services/site-config";
  * bairros atendidos, horario, tempo medio e WhatsApp (sem acao).
  */
 export function DeliveryArea() {
+  const neighborhoods = useNeighborhoods();
   const facts = [
     { icon: Clock, label: "Horário", value: "Todos os dias, 18h às 23h30" },
     { icon: Bike, label: "Tempo médio", value: "35 a 45 minutos" },
@@ -39,10 +40,10 @@ export function DeliveryArea() {
             <div className="mt-2 flex flex-wrap gap-2">
               {neighborhoods.map((h) => (
                 <span
-                  key={h}
+                  key={h.id}
                   className="rounded-full border border-brand-ink bg-brand-ink/[0.08] px-3 py-1.5 text-sm font-semibold text-brand-ink"
                 >
-                  {h}
+                  {h.name}
                 </span>
               ))}
             </div>

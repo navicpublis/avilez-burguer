@@ -20,7 +20,6 @@ import {
  */
 
 const KEY = "avilez_orders";
-const SEED_FLAG = "avilez_orders_seeded";
 const CHANNEL = "avilez_orders_rt";
 
 /** Entrada do histórico de alterações de status. */
@@ -97,6 +96,20 @@ export function advanceStatus(id: string): void {
   updateStatus(id, next);
 }
 
+/**
+ * Cria um PEDIDO MANUAL (feito pelo atendente) com status "recebido".
+ * Usa a mesma estrutura dos pedidos normais e dispara o tempo real.
+ */
+export function createManualOrder(order: Order): ManagedOrder {
+  const managed = normalize({ ...order, status: "recebido" });
+  managed.history = [{ status: "recebido", at: managed.createdAt }];
+  const list = readRaw();
+  list.unshift(managed);
+  writeRaw(list);
+  broadcast();
+  return managed;
+}
+
 /** Cancela o pedido registrando o motivo. Mantém todo o histórico. */
 export function cancelOrder(id: string, reason: string): void {
   const list = readRaw().map((o) => normalize(o));
@@ -155,68 +168,3 @@ export function subscribe(cb: Listener): () => void {
   };
 }
 
-// ---------- seed de exemplo (só p/ demonstração, se estiver vazio) ----------
-export function seedIfEmpty(): void {
-  try {
-    if (localStorage.getItem(SEED_FLAG) === "1") return;
-    if (readRaw().length > 0) {
-      localStorage.setItem(SEED_FLAG, "1");
-      return;
-    }
-    const now = Date.now();
-    const min = 60 * 1000;
-    const mk = (
-      id: string,
-      name: string,
-      phone: string,
-      total: number,
-      status: OrderStatus,
-      agoMin: number,
-      items: ManagedOrder["items"]
-    ): ManagedOrder => ({
-      id,
-      createdAt: new Date(now - agoMin * min).toISOString(),
-      status,
-      customer: {
-        name,
-        phone,
-        street: "Rua das Flores",
-        number: "123",
-        complement: "",
-        neighborhood: "Centro",
-        reference: "",
-        cep: "",
-      },
-      payment: "PIX",
-      changeFor: null,
-      items,
-      subtotal: total - 6,
-      fee: 6,
-      discount: 0,
-      coupon: null,
-      total,
-      trackingUrl: `https://avilezburguer.com.br/pedido/${id}`,
-      history: [{ status, at: new Date(now - agoMin * min).toISOString() }],
-    });
-    const seed: ManagedOrder[] = [
-      mk("AVLZ-48392", "Renan Souza", "(21) 99888-1122", 79.8, "recebido", 3, [
-        { name: "Duplo Cheddar", qty: 2, addons: ["Bacon"], obs: "Sem cebola", unitPrice: 39.9, lineTotal: 79.8 },
-      ]),
-      mk("AVLZ-51203", "Marina Alves", "(21) 99777-3344", 45.9, "producao", 14, [
-        { name: "Avilez Clássico", qty: 1, addons: [], obs: "", unitPrice: 27.9, lineTotal: 27.9 },
-        { name: "Refrigerante Lata", qty: 2, addons: [], obs: "", unitPrice: 6.9, lineTotal: 13.8 },
-      ]),
-      mk("AVLZ-49881", "Carlos Nunes", "(21) 99666-5566", 122.4, "entrega", 26, [
-        { name: "Combo a Dois", qty: 1, addons: [], obs: "Caprichar no molho", unitPrice: 84.9, lineTotal: 84.9 },
-        { name: "Bacon Supremo", qty: 1, addons: ["Cheddar extra"], obs: "", unitPrice: 41.9, lineTotal: 41.9 },
-      ]),
-      mk("AVLZ-49102", "Beatriz Lima", "(21) 99555-7788", 38.9, "entregue", 44, [
-        { name: "Salada da Casa", qty: 1, addons: [], obs: "", unitPrice: 29.9, lineTotal: 29.9 },
-      ]),
-    ];
-    writeRaw(seed);
-    localStorage.setItem(SEED_FLAG, "1");
-  } catch {
-    /* ignore */
-  }
-}

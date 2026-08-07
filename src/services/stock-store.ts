@@ -87,7 +87,7 @@ export function stockStatus(i: Ingredient): StockStatus {
 const KEY = "avilez_stock";
 const CHANNEL = "avilez_stock_rt";
 const CONSUMED_KEY = "avilez_stock_consumed"; // ids de pedidos já baixados (idempotência)
-const CURRENT_USER = "Guilherme";
+const CURRENT_USER = "Avilez Burguer";
 
 function uid(p: string): string {
   return `${p}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;

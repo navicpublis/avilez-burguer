@@ -42,10 +42,6 @@ export const ADDONS: Addon[] = [
 export const OBS_SUGGESTIONS = ["Sem cebola", "Pouco molho", "Bem passado", "Sem picles"];
 
 
-/** Cupons (estrutura). */
-export const COUPONS: Record<string, { type: "pct"; value: number; label: string }> = {
-  AVILEZ10: { type: "pct", value: 10, label: "10% de desconto" },
-};
 
 export const burgers: Product[] = [
   { id: "classico", cat: "hamburgueres", name: "Avilez Clássico", desc: "Blend 160g na chapa, cheddar, alface, tomate e maionese da casa no pão brioche.", ingredients: ["Pão brioche", "Blend bovino 160g", "Cheddar", "Alface", "Tomate", "Maionese da casa"], price: 27.9, image: card1, badge: "Mais pedido", available: true, hasAddons: true },

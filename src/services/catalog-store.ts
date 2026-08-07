@@ -20,6 +20,10 @@ export interface Category {
   name: string;
   order: number;
   hidden: boolean;
+  /** Descrição curta opcional (exibida no admin). */
+  description?: string;
+  /** Nome de ícone opcional (lucide) — uso futuro na landing. */
+  icon?: string;
 }
 
 /** Grupo reutilizável de adicionais (ex.: Molhos, Queijos, Carnes). */

@@ -5,3 +5,6 @@ export { useOrders, useOrder } from "./use-orders";
 export { useCatalog } from "./use-catalog";
 export { useStock } from "./use-stock";
 export { useNeighborhoods } from "./use-neighborhoods";
+export { useSettings } from "./use-settings";
+export { useReviews, useApprovedReviews } from "./use-reviews";
+export { useNotes } from "./use-notes";

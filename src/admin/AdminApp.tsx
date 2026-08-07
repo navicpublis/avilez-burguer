@@ -7,7 +7,13 @@ import { DashboardHome } from "./pages/DashboardHome";
 import { OrdersPage } from "./pages/OrdersPage";
 import { ProductsPage } from "./pages/ProductsPage";
 import { StockPage } from "./pages/StockPage";
-import { seedIfEmpty } from "@/services/orders-store";
+import { CategoriesPage } from "./pages/CategoriesPage";
+import { ClientsPage } from "./pages/ClientsPage";
+import { ReviewsPage } from "./pages/ReviewsPage";
+import { CouponsPage } from "./pages/CouponsPage";
+import { ReportsPage } from "./pages/ReportsPage";
+import { NotesPage } from "./pages/NotesPage";
+import { SettingsPage } from "./pages/SettingsPage";
 import { initStockAutoConsume } from "@/services/stock-store";
 
 const REMEMBER_KEY = "avilez_admin_remember";
@@ -29,9 +35,8 @@ export function AdminApp() {
   const [drawer, setDrawer] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
-  // popula pedidos de exemplo na primeira vez (só p/ demonstração)
+  // inicia o consumo automático de estoque ao confirmar pedidos
   useEffect(() => {
-    seedIfEmpty();
     const stopStock = initStockAutoConsume();
     return stopStock;
   }, []);
@@ -71,10 +76,9 @@ export function AdminApp() {
         active={active}
         open={drawer}
         onLogout={logout}
-        onSelect={(key, soon) => {
+        onSelect={(key) => {
           setActive(key);
           setDrawer(false);
-          if (soon) notify("Essa tela chega numa próxima fase");
         }}
       />
 
@@ -88,10 +92,17 @@ export function AdminApp() {
 
       <div className="flex min-h-dvh flex-col min-[861px]:ml-[260px]">
         <Topbar onOpenMenu={() => setDrawer(true)} />
-        {active === "dashboard" && <DashboardHome notify={notify} />}
+        {active === "dashboard" && <DashboardHome notify={notify} onNavigate={setActive} />}
         {active === "pedidos" && <OrdersPage />}
         {active === "produtos" && <ProductsPage />}
         {active === "estoque" && <StockPage />}
+        {active === "categorias" && <CategoriesPage />}
+        {active === "clientes" && <ClientsPage />}
+        {active === "avaliacoes" && <ReviewsPage />}
+        {active === "cupons" && <CouponsPage />}
+        {active === "relatorios" && <ReportsPage />}
+        {active === "anotacoes" && <NotesPage />}
+        {active === "configuracoes" && <SettingsPage />}
       </div>
 
       {toast && (

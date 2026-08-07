@@ -2,7 +2,7 @@ import { Instagram, Facebook, MessageCircle, MapPin, Clock } from "lucide-react"
 
 import { Container } from "@/components/ui";
 import { Logo } from "@/components/layout/Logo";
-import { siteConfig, whatsappLink } from "@/services/site-config";
+import { useSettings } from "@/hooks";
 
 /**
  * Footer institucional.
@@ -10,9 +10,10 @@ import { siteConfig, whatsappLink } from "@/services/site-config";
  * Facebook) e copyright. Dados vêm do site-config (fonte única).
  */
 export function Footer() {
-  const { contact, location, hours, social } = siteConfig;
-  const instagram = social.find((s) => s.icon === "instagram");
-  const facebook = social.find((s) => s.icon === "facebook");
+  const { business, hours } = useSettings();
+  const waHref = `https://wa.me/${business.whatsapp}`;
+  const instagramHref = "https://instagram.com/avilezburguer";
+  const facebookHref = "https://facebook.com/avilezburguer";
 
   return (
     <footer
@@ -25,7 +26,7 @@ export function Footer() {
           <div className="lg:col-span-1">
             <Logo />
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">
-              {siteConfig.description}
+              {business.description}
             </p>
           </div>
 
@@ -36,7 +37,7 @@ export function Footer() {
             </h3>
             <p className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-foreground">
               <MapPin className="size-4 text-primary" />
-              {location.city}
+              {business.city} - {business.state}
             </p>
             <p className="mt-2 text-sm text-muted-foreground">
               Atendimento por delivery.
@@ -70,34 +71,34 @@ export function Footer() {
             </h3>
             <div className="mt-4 flex flex-col gap-3">
               <a
-                href={whatsappLink()}
+                href={waHref}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 text-sm font-semibold text-foreground transition-colors duration-hover ease-brand hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
               >
                 <MessageCircle className="size-4 text-primary" />
-                {contact.whatsappDisplay}
+                {business.whatsappDisplay}
               </a>
-              {instagram && (
+              {true && (
                 <a
-                  href={instagram.href}
+                  href={instagramHref}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 text-sm font-semibold text-foreground transition-colors duration-hover ease-brand hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
                 >
                   <Instagram className="size-4 text-primary" />
-                  {contact.instagramHandle}
+                  {business.instagram}
                 </a>
               )}
-              {facebook && (
+              {true && (
                 <a
-                  href={facebook.href}
+                  href={facebookHref}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 text-sm font-semibold text-foreground transition-colors duration-hover ease-brand hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
                 >
                   <Facebook className="size-4 text-primary" />
-                  {contact.facebookName}
+                  {business.facebook}
                 </a>
               )}
             </div>
@@ -106,7 +107,7 @@ export function Footer() {
 
         {/* Base: copyright */}
         <div className="flex flex-col gap-1 border-t border-border py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-          <p>© 2026 {siteConfig.name}. Todos os direitos reservados.</p>
+          <p>© 2026 {business.name}. Todos os direitos reservados.</p>
           <p>
             Desenvolvido por{" "}
             <span className="font-semibold text-foreground">AVLZ</span>

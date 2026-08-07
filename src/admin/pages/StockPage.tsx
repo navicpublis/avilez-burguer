@@ -1,10 +1,11 @@
 import { useMemo, useState, type ReactNode } from "react";
 import {
   Search, Plus, Package, AlertTriangle, XCircle, ShoppingBag, Clock,
-  SlidersHorizontal, Eye, Pencil, Trash2, BookOpen, Bell, BarChart3,
+  SlidersHorizontal, Eye, Pencil, Trash2, BookOpen, Bell,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/utils/format";
 import { useStock } from "@/hooks";
 import {
   type Ingredient, type IngredientCategory,
@@ -32,6 +33,7 @@ export function StockPage() {
   const suppliers = useMemo(() => Array.from(new Set(stock.ingredients.map((i) => i.supplier).filter(Boolean))), [stock]);
   const notifications = stockNotifications();
   const updatedAt = lastUpdatedAt();
+  const stockCost = stock.ingredients.reduce((sum, i) => sum + i.qty * i.buyPrice, 0);
 
   // contagem de consumo por ingrediente (p/ "mais consumidos")
   const consumed = useMemo(() => {
@@ -79,7 +81,7 @@ export function StockPage() {
         <StatCard icon={Package} tone="text-emerald-400" label="Itens em Estoque" value={cards.ok} />
         <StatCard icon={AlertTriangle} tone="text-amber-400" label="Itens Baixos" value={cards.baixo} />
         <StatCard icon={XCircle} tone="text-red-400" label="Itens Zerados" value={cards.zerado} />
-        <StatCard icon={ShoppingBag} tone="text-sky-400" label="Compras Pendentes" value={0} hint="em breve" />
+        <StatCard icon={ShoppingBag} tone="text-sky-400" label="Custo em Estoque" value={formatCurrency(stockCost)} small />
         <StatCard icon={Clock} tone="text-primary" label="Última Atualização" value={updatedAt ? new Date(updatedAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—"} small />
       </div>
 
@@ -172,17 +174,6 @@ export function StockPage() {
           </div>
         </>
       )}
-
-      {/* gráficos placeholder */}
-      <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-4">
-        {["Consumo Mensal", "Ingredientes Mais Utilizados", "Custo do Estoque", "Perdas"].map((t) => (
-          <div key={t} className="rounded-2xl border border-border bg-card p-4">
-            <div className="mb-3 flex items-center gap-2 text-sm font-bold"><BarChart3 className="size-4 text-primary" /> {t}</div>
-            <div className="flex h-28 items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground">Prévia — em breve</div>
-          </div>
-        ))}
-      </div>
-      <p className="mt-4 text-xs text-muted-foreground">Importação de ingredientes via CSV: estrutura preparada, disponível numa próxima fase.</p>
 
       <IngredientDrawer ingredient={drawer} onClose={() => setDrawer(null)} />
       <AdjustStockDrawer ingredient={adjust} onClose={() => setAdjust(null)} />

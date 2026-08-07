@@ -11,9 +11,9 @@ import {
 import {
   findProduct,
   findAddon,
-  COUPONS,
 } from "@/services/menu-data";
 import { getNeighborhood } from "@/services/neighborhoods-store";
+import { validateCoupon } from "@/services/coupons-store";
 import type { CustomerData } from "@/services/orders";
 
 /** Uma linha do carrinho (produto + adicionais + observacao + quantidade). */
@@ -168,7 +168,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     const nb = getNeighborhood(neighborhoodId);
     const feeReady = !!nb && nb.active;
     const fee = feeReady ? nb!.fee : 0;
-    const c = coupon ? COUPONS[coupon] : undefined;
+    const c = coupon ? validateCoupon(coupon, subtotal) : null;
     const discount = c ? (c.type === "pct" ? (subtotal * c.value) / 100 : c.value) : 0;
     const total = Math.max(0, subtotal + fee - discount);
 
@@ -193,9 +193,10 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       setNeighborhoodId,
       coupon,
       applyCoupon: (code) => {
-        const up = code.toUpperCase().trim();
-        if (COUPONS[up]) {
-          setCoupon(up);
+        const sub = cart.reduce((s, i) => s + unitPrice(i) * i.qty, 0);
+        const valid = validateCoupon(code, sub);
+        if (valid) {
+          setCoupon(valid.code.toUpperCase());
           return true;
         }
         setCoupon(null);

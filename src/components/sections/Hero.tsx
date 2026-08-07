@@ -1,5 +1,6 @@
 import { Container } from "@/components/ui";
 import burgerPhoto from "@/assets/burger.webp";
+import { useSettings } from "@/hooks";
 
 /**
  * Hero — primeira tela do site (campo amarelo #FDBE0A + tudo em preto).
@@ -7,6 +8,7 @@ import burgerPhoto from "@/assets/burger.webp";
  * "Ver Cardápio" rola suave até a seção do cardápio.
  */
 export function Hero() {
+  const { landing } = useSettings();
   const goToMenu = () => {
     const el = document.getElementById("hamburgueres");
     if (!el) return;
@@ -27,7 +29,7 @@ export function Hero() {
             className="mt-8 max-w-[11ch] font-condensed uppercase leading-[0.88] tracking-[0.005em] text-brand-ink lg:mt-0 lg:max-w-[9ch] [transform:skewX(-4deg)] [transform-origin:left]"
             style={{ fontSize: "clamp(3.75rem, 17vw, 8.5rem)" }}
           >
-            O melhor da Costa Verde.
+            {landing.heroTitle}
           </h1>
 
           <div className="mt-8">

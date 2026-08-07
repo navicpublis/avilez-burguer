@@ -5,7 +5,7 @@ import { NAV } from "../admin-data";
 
 interface SidebarProps {
   active: string;
-  onSelect: (key: string, soon?: boolean) => void;
+  onSelect: (key: string) => void;
   onLogout: () => void;
   open: boolean;
 }
@@ -29,7 +29,7 @@ export function Sidebar({ active, onSelect, onLogout, open }: SidebarProps) {
             <button
               key={item.key}
               type="button"
-              onClick={() => onSelect(item.key, item.soon)}
+              onClick={() => onSelect(item.key)}
               className={cn(
                 "flex w-full items-center gap-3.5 rounded-lg px-3.5 py-2.5 text-left text-[0.92rem] font-semibold transition-colors",
                 isActive
