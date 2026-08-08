@@ -1,8 +1,7 @@
 import { Clock, Bike, MessageCircle } from "lucide-react";
 
 import { Container, SectionHead, Reveal } from "@/components/ui";
-import { useNeighborhoods } from "@/hooks";
-import { siteConfig } from "@/services/site-config";
+import { useNeighborhoods, useSettings } from "@/hooks";
 
 /**
  * DeliveryArea — area de entrega (fundo amarelo). Apenas visual:
@@ -10,10 +9,12 @@ import { siteConfig } from "@/services/site-config";
  */
 export function DeliveryArea() {
   const neighborhoods = useNeighborhoods();
+  const { hours, business } = useSettings();
+  const horario = hours.map((h) => `${h.days}: ${h.time ?? "A definir"}`).join("  •  ");
   const facts = [
-    { icon: Clock, label: "Horário", value: "Todos os dias, 18h às 23h30" },
+    { icon: Clock, label: "Horário", value: horario },
     { icon: Bike, label: "Tempo médio", value: "35 a 45 minutos" },
-    { icon: MessageCircle, label: "WhatsApp", value: siteConfig.contact.whatsappDisplay },
+    { icon: MessageCircle, label: "WhatsApp", value: business.whatsappDisplay },
   ];
 
   return (

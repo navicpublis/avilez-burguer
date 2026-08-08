@@ -94,14 +94,14 @@ export function ProductCard({ product, small = false, onSelect }: ProductCardPro
           {name}
         </h3>
         <p className="line-clamp-2 text-[0.82rem] leading-snug text-muted-foreground">{desc}</p>
-        <div className="mt-auto flex min-w-0 items-center justify-between gap-2 pt-1.5">
-          <div className="flex min-w-0 flex-col leading-none">
+        <div className="mt-auto flex flex-col gap-2 pt-2 min-[400px]:flex-row min-[400px]:items-center min-[400px]:justify-between min-[400px]:gap-2">
+          <div className="flex shrink-0 flex-col leading-none">
             {oldPrice && (
               <span className="text-xs text-muted-foreground line-through">
                 {formatCurrency(oldPrice)}
               </span>
             )}
-            <strong className="text-[1.02rem] font-extrabold text-foreground">
+            <strong className="whitespace-nowrap text-[1.02rem] font-extrabold text-foreground">
               {formatCurrency(price)}
             </strong>
           </div>
@@ -113,7 +113,7 @@ export function ProductCard({ product, small = false, onSelect }: ProductCardPro
               e.stopPropagation();
               open();
             }}
-            className="shrink-0 rounded-md bg-primary px-3.5 py-2 text-[0.82rem] font-bold text-primary-foreground transition-colors duration-hover ease-brand hover:bg-brand-yellow-soft active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full shrink-0 whitespace-nowrap rounded-md bg-primary px-3.5 py-2 text-[0.82rem] font-bold text-primary-foreground transition-colors duration-hover ease-brand hover:bg-brand-yellow-soft active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 min-[400px]:w-auto"
           >
             Adicionar
           </button>

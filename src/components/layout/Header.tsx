@@ -44,7 +44,7 @@ export function Header({ topTheme = "dark" }: HeaderProps) {
       className={cn(
         "fixed inset-x-0 top-0 z-40 pt-safe transition-colors duration-section ease-brand",
         scrolled
-          ? "border-b border-border bg-background/85 backdrop-blur-md"
+          ? "border-b border-border bg-background/90 backdrop-blur-sm"
           : "border-b border-transparent bg-transparent"
       )}
     >

@@ -120,6 +120,7 @@ export function ProductDrawer({
           <div className="grid grid-cols-2 gap-3">
             <Field label="Categoria">
               <select className={inp} value={form.categoryId} onChange={(e) => set("categoryId", e.target.value)}>
+                <option value="">Sem categoria</option>
                 {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </Field>

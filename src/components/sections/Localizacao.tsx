@@ -15,10 +15,15 @@ export function Localizacao() {
       aria-labelledby="localizacao-title"
       className="relative overflow-hidden bg-background py-28 md:py-40"
     >
-      {/* brilho amarelo bem sutil ao fundo */}
+      {/* brilho amarelo bem sutil ao fundo (gradiente radial — sem filtro,
+          para não repintar durante o scroll no mobile) */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute left-1/2 top-1/2 size-[36rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/[0.06] blur-3xl"
+        className="pointer-events-none absolute left-1/2 top-1/2 size-[36rem] -translate-x-1/2 -translate-y-1/2 rounded-full"
+        style={{
+          background:
+            "radial-gradient(circle, rgba(255,193,7,0.10) 0%, rgba(255,193,7,0.04) 40%, transparent 70%)",
+        }}
       />
 
       <Container className="relative">

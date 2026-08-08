@@ -93,6 +93,23 @@ export function getOrder(id: string): Order | null {
 
 const DIVIDER = "----------------------------";
 
+/**
+ * Emojis por code point (source 100% ASCII) — evita QUALQUER corrupção de
+ * encoding (o caractere de substituição) no pipeline git/editor/build.
+ * São reconstruídos em runtime, então a mensagem nunca sai com caractere quebrado.
+ */
+const EMOJI = {
+  burger: "\u{1F354}",   // 🍔
+  order: "\u{1F4CB}",    // 📋
+  user: "\u{1F464}",     // 👤
+  phone: "\u{1F4F1}",    // 📱
+  pin: "\u{1F4CD}",      // 📍
+  cart: "\u{1F6D2}",     // 🛒
+  money: "\u{1F4B0}",    // 💰
+  note: "\u{1F4DD}",     // 📝
+  link: "\u{1F517}",     // 🔗
+};
+
 /** Monta a mensagem do WhatsApp exatamente no padrão da Avilez Burguer. */
 export function buildWhatsAppMessage(order: Order): string {
   const { customer } = order;
@@ -121,35 +138,35 @@ export function buildWhatsAppMessage(order: Order): string {
       : order.payment;
 
   const parts = [
-    "🍔 *NOVO PEDIDO - AVILEZ BURGUER*",
+    `${EMOJI.burger} *NOVO PEDIDO - AVILEZ BURGUER*`,
     "",
-    `📦 Pedido: ${order.id}`,
+    `${EMOJI.order} Pedido: ${order.id}`,
     "",
-    "👤 Cliente:",
+    `${EMOJI.user} Cliente:`,
     customer.name,
     "",
-    "📱 WhatsApp:",
+    `${EMOJI.phone} WhatsApp:`,
     customer.phone,
     "",
-    "📍 Endereço:",
+    `${EMOJI.pin} Endereço:`,
     ...addressLines,
     "",
     DIVIDER,
     "",
-    "🛒 ITENS",
+    `${EMOJI.cart} ITENS`,
     "",
     itemBlocks.join("\n\n"),
     "",
     DIVIDER,
     "",
-    "💰 Forma de pagamento:",
+    `${EMOJI.money} Forma de pagamento:`,
     "",
     paymentLine,
   ];
 
   // Observações gerais do pedido (quando houver)
   if (order.notes && order.notes.trim()) {
-    parts.push("", DIVIDER, "", "📝 Observações:", "", order.notes.trim());
+    parts.push("", DIVIDER, "", `${EMOJI.note} Observações:`, "", order.notes.trim());
   }
 
   parts.push(
@@ -162,7 +179,7 @@ export function buildWhatsAppMessage(order: Order): string {
     "",
     DIVIDER,
     "",
-    "📲 Acompanhar pedido:",
+    `${EMOJI.link} Acompanhar pedido:`,
     "",
     order.trackingUrl
   );

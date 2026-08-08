@@ -24,7 +24,7 @@ export const siteConfig = {
    */
   hours: [
     { days: "Segunda a Quinta", time: "18h às 23h" },
-    { days: "Sexta e Sábado", time: "18h às 00h" },
+    { days: "Sexta a Domingo", time: "18h às 00h" },
     { days: "Domingo", time: null },
   ] as const,
 

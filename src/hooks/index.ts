@@ -8,3 +8,4 @@ export { useNeighborhoods } from "./use-neighborhoods";
 export { useSettings } from "./use-settings";
 export { useReviews, useApprovedReviews } from "./use-reviews";
 export { useNotes } from "./use-notes";
+export { useMenuProducts, useCategoryVisible } from "./use-menu";
