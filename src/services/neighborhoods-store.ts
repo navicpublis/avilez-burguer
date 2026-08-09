@@ -19,7 +19,12 @@ export interface Neighborhood {
   active: boolean;
 }
 
+import { fetchZones, pushZones } from "@/lib/db";
+import { isSupabaseConfigured } from "@/lib/supabase";
+
 const KEY = "avilez_neighborhoods";
+// cache em memória (API síncrona preservada; Supabase hidrata no load)
+let cache: Neighborhood[] | null = null;
 const CHANNEL = "avilez_neighborhoods_rt";
 
 function uid(): string {
@@ -50,11 +55,12 @@ function seed(): Neighborhood[] {
 
 // ---------- persistência ----------
 function read(): Neighborhood[] {
+  if (cache) return cache;
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const list = JSON.parse(raw) as Neighborhood[];
-      if (Array.isArray(list)) return list;
+      if (Array.isArray(list)) { cache = list; return cache; }
     }
   } catch {
     /* ignore */
@@ -64,12 +70,12 @@ function read(): Neighborhood[] {
   return seeded;
 }
 function write(list: Neighborhood[]): void {
+  cache = list;
   try {
     localStorage.setItem(KEY, JSON.stringify(list));
   } catch {
     /* ignore */
   }
-  // FUTURO (Supabase): upsert em neighborhoods
 }
 
 // ---------- pub/sub ----------
@@ -87,6 +93,18 @@ function commit(list: Neighborhood[]) {
   ensureChannel();
   channel?.postMessage("changed");
   listeners.forEach((l) => l());
+  if (isSupabaseConfigured) void pushZones(list);
+}
+
+// hidratação Supabase → cache (fonte única de leitura quando há dados)
+if (isSupabaseConfigured) {
+  void fetchZones().then((remote) => {
+    if (remote) {
+      cache = remote;
+      try { localStorage.setItem(KEY, JSON.stringify(remote)); } catch { /* ignore */ }
+      listeners.forEach((l) => l());
+    }
+  });
 }
 export function subscribe(cb: Listener): () => void {
   ensureChannel();

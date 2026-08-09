@@ -1,3 +1,4 @@
+import { supabase, isSupabaseConfigured, requireSupabase } from "@/lib/supabase";
 import { formatCurrency } from "@/utils/format";
 
 /** WhatsApp da Avilez Burguer (destino do pedido). +55 21 97190-2603 */
@@ -60,7 +61,11 @@ export function generateOrderId(): string {
 
 /** Link exclusivo de acompanhamento do pedido. */
 export function trackingUrl(id: string): string {
-  return `${BASE_URL}/pedido/${id}`;
+  const origin =
+    typeof window !== "undefined" && window.location?.origin
+      ? window.location.origin
+      : BASE_URL;
+  return `${origin}/pedido/${id}`;
 }
 
 /**
@@ -192,4 +197,86 @@ export function whatsappUrl(order: Order): string {
   return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
     buildWhatsAppMessage(order)
   )}`;
+}
+
+
+/* ─────────────────── Integração Supabase (pedidos) ─────────────────── */
+
+/** Item do pedido no formato esperado pela RPC create_order. */
+export interface RemoteOrderItem {
+  product_id: string | null;
+  name: string;
+  unit_price: number; // preço BASE do produto (a RPC soma os adicionais)
+  quantity: number;
+  notes: string;
+  addons: { name: string; price: number }[];
+}
+
+export interface RemoteOrderPayload {
+  customer: { name: string; phone: string };
+  address: { street: string; number: string; complement: string; reference: string; cep: string };
+  delivery_zone_id: string;
+  payment_method: PaymentMethod;
+  change_for: string | null;
+  coupon_code: string | null;
+  customer_notes: string;
+  items: RemoteOrderItem[];
+}
+
+/**
+ * Cria o pedido no Supabase (RPC segura create_order). O SERVIDOR calcula
+ * taxa e desconto, cria cliente/endereço/pedido/itens/adicionais e devolve o
+ * order_number + public_token. Lança erro se algo falhar — o chamador NÃO
+ * deve abrir o WhatsApp nesse caso.
+ */
+export async function placeRemoteOrder(
+  payload: RemoteOrderPayload
+): Promise<{ publicToken: string; orderNumber: string }> {
+  const sb = requireSupabase();
+  const { data, error } = await sb.rpc("create_order", { payload });
+  if (error) throw new Error(error.message || "Falha ao registrar o pedido.");
+  if (!data || !data.public_token) throw new Error("Resposta inválida do servidor.");
+  return { publicToken: String(data.public_token), orderNumber: String(data.order_number) };
+}
+
+/**
+ * Busca um pedido pelo public_token (RPC pública get_order_by_token) e devolve
+ * no formato que a tela de acompanhamento já usa. Retorna null se não achar ou
+ * se o Supabase não estiver configurado.
+ */
+export async function getRemoteOrderByToken(token: string): Promise<Order & { history: { status: string; at: string }[] } | null> {
+  if (!isSupabaseConfigured || !supabase) return null;
+  try {
+    const { data, error } = await supabase.rpc("get_order_by_token", { p_token: token });
+    if (error || !data) return null;
+    const items: OrderItem[] = (data.items ?? []).map((it: Record<string, unknown>) => ({
+      name: String(it.name ?? ""),
+      qty: Number(it.quantity ?? 1),
+      addons: [],
+      obs: String(it.notes ?? ""),
+      unitPrice: Number(it.unit_price ?? 0),
+      lineTotal: Number(it.subtotal ?? 0),
+    }));
+    return {
+      id: String(data.order_number ?? token),
+      createdAt: String(data.created_at ?? new Date().toISOString()),
+      status: String(data.status ?? "recebido"),
+      customer: {
+        name: String(data.customer_name ?? ""),
+        phone: "", street: "", number: "", complement: "", neighborhood: "", reference: "", cep: "",
+      },
+      payment: (data.payment_method ?? "PIX") as PaymentMethod,
+      changeFor: null,
+      items,
+      subtotal: Number(data.subtotal ?? 0),
+      fee: Number(data.delivery_fee ?? 0),
+      discount: Number(data.discount ?? 0),
+      coupon: null,
+      total: Number(data.total ?? 0),
+      trackingUrl: trackingUrl(token),
+      history: (data.history ?? []).map((h: Record<string, unknown>) => ({ status: String(h.status), at: String(h.at) })),
+    };
+  } catch {
+    return null;
+  }
 }

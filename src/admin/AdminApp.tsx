@@ -15,28 +15,56 @@ import { ReportsPage } from "./pages/ReportsPage";
 import { NotesPage } from "./pages/NotesPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { initStockAutoConsume } from "@/services/stock-store";
+import { isSupabaseConfigured } from "@/lib/supabase";
+import { isActiveAdmin, signOutAdmin, onAuthChange } from "@/lib/auth";
 
 const REMEMBER_KEY = "avilez_admin_remember";
 
 /**
  * AdminApp — raiz do painel administrativo (independente do site público).
- * Gate de login (estrutura) → layout com sidebar + header + conteúdo.
- * Só a Dashboard principal existe; os demais itens são de fases futuras.
+ *
+ * Acesso (com Supabase configurado): exige sessão válida do Supabase Auth E
+ * perfil admin ativo (admin_profiles.active). A sessão é recuperada ao
+ * recarregar e mudanças de auth são assinadas. Sem Supabase configurado, cai
+ * no modo de desenvolvimento local (gate simples via localStorage, sem senha).
  */
 export function AdminApp() {
   const [authed, setAuthed] = useState<boolean>(() => {
+    if (isSupabaseConfigured) return false; // decidido após checar a sessão
     try {
       return localStorage.getItem(REMEMBER_KEY) === "1";
     } catch {
       return false;
     }
   });
+  const [checking, setChecking] = useState<boolean>(isSupabaseConfigured);
   const [active, setActive] = useState("dashboard");
   const [drawer, setDrawer] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
-  // inicia o consumo automático de estoque ao confirmar pedidos
+  // Recuperação de sessão + escuta de mudanças de autenticação (Supabase).
   useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    let alive = true;
+    const check = () => {
+      isActiveAdmin().then((ok) => {
+        if (!alive) return;
+        setAuthed(ok);
+        setChecking(false);
+      });
+    };
+    check();
+    const unsub = onAuthChange(check);
+    return () => {
+      alive = false;
+      unsub();
+    };
+  }, []);
+
+  // inicia o consumo automático de estoque ao confirmar pedidos (só no modo
+  // local; com Supabase, a baixa é feita pela RPC no banco — sem duplicar).
+  useEffect(() => {
+    if (isSupabaseConfigured) return;
     const stopStock = initStockAutoConsume();
     return stopStock;
   }, []);
@@ -46,22 +74,38 @@ export function AdminApp() {
     window.setTimeout(() => setToast(null), 1800);
   }
 
+  if (checking) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-background text-muted-foreground">
+        Carregando…
+      </div>
+    );
+  }
+
   if (!authed) {
     return (
       <LoginPage
         onEnter={(remember) => {
-          try {
-            if (remember) localStorage.setItem(REMEMBER_KEY, "1");
-          } catch {
-            /* ignore */
+          if (!isSupabaseConfigured) {
+            try {
+              if (remember) localStorage.setItem(REMEMBER_KEY, "1");
+            } catch {
+              /* ignore */
+            }
+            setAuthed(true);
           }
-          setAuthed(true);
+          // com Supabase: onAuthChange já dispara o check e libera o painel
         }}
       />
     );
   }
 
   function logout() {
+    if (isSupabaseConfigured) {
+      void signOutAdmin();
+      setAuthed(false);
+      return;
+    }
     try {
       localStorage.removeItem(REMEMBER_KEY);
     } catch {

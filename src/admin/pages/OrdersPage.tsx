@@ -22,8 +22,11 @@ import {
 import {
   advanceStatus,
   cancelOrder,
+  advanceStatusRemote,
+  cancelOrderRemoteAction,
   type ManagedOrder,
 } from "@/services/orders-store";
+import { isSupabaseConfigured } from "@/lib/supabase";
 import { StatusBadge } from "@/components/order/StatusBadge";
 import { OrderDetail } from "../components/OrderDetail";
 
@@ -109,6 +112,28 @@ function OrderCard({
 
   const [confirming, setConfirming] = useState(false);
   const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  async function handleAdvance() {
+    if (busy) return;
+    setActionError(null);
+    if (!isSupabaseConfigured) { advanceStatus(order.id); return; }
+    setBusy(true);
+    const r = await advanceStatusRemote(order.id);
+    setBusy(false);
+    if (!r.ok) setActionError(r.error ?? "Não foi possível atualizar o pedido.");
+  }
+  async function handleCancel() {
+    if (busy) return;
+    setActionError(null);
+    if (!isSupabaseConfigured) { cancelOrder(order.id, reason); setConfirming(false); setReason(""); return; }
+    setBusy(true);
+    const r = await cancelOrderRemoteAction(order.id, reason);
+    setBusy(false);
+    if (r.ok) { setConfirming(false); setReason(""); }
+    else setActionError(r.error ?? "Não foi possível cancelar o pedido.");
+  }
 
   return (
     <div
@@ -161,10 +186,11 @@ function OrderCard({
       {label ? (
         <button
           type="button"
-          onClick={() => advanceStatus(order.id)}
-          className="mt-3 flex h-11 w-full items-center justify-center gap-1.5 rounded-lg bg-primary text-sm font-bold text-primary-foreground transition-[background-color,transform] duration-hover ease-brand hover:bg-brand-yellow-soft active:scale-[0.99]"
+          onClick={handleAdvance}
+          disabled={busy}
+          className="mt-3 flex h-11 w-full items-center justify-center gap-1.5 rounded-lg bg-primary text-sm font-bold text-primary-foreground transition-[background-color,transform] duration-hover ease-brand hover:bg-brand-yellow-soft active:scale-[0.99] disabled:opacity-60"
         >
-          {label} <ChevronRight className="size-4" />
+          {busy ? "Processando…" : label} <ChevronRight className="size-4" />
         </button>
       ) : order.status === "entregue" ? (
         <div className="mt-3 flex h-11 items-center justify-center gap-1.5 rounded-lg bg-emerald-500/10 text-sm font-bold text-emerald-400">
@@ -174,6 +200,12 @@ function OrderCard({
         <div className="mt-3 flex h-11 items-center justify-center gap-1.5 rounded-lg bg-red-500/10 text-sm font-bold text-red-400">
           <X className="size-4" /> Pedido cancelado
         </div>
+      )}
+
+      {actionError && (
+        <p className="mt-2 rounded-md bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-300">
+          {actionError}
+        </p>
       )}
 
       {order.status === "cancelado" && order.cancelReason && (
@@ -233,12 +265,9 @@ function OrderCard({
             </button>
             <button
               type="button"
-              onClick={() => {
-                cancelOrder(order.id, reason);
-                setConfirming(false);
-                setReason("");
-              }}
-              className="h-9 flex-1 rounded-md bg-red-500 text-xs font-bold text-white transition-colors hover:bg-red-600 active:scale-[0.99]"
+              onClick={handleCancel}
+              disabled={busy}
+              className="h-9 flex-1 rounded-md bg-red-500 text-xs font-bold text-white transition-colors hover:bg-red-600 active:scale-[0.99] disabled:opacity-60"
             >
               Confirmar
             </button>

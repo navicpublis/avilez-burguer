@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Supabase / segredos locais
+.env
+.env.local
+.env.*.local

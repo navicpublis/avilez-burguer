@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { X, Upload, ImageOff, Check } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { uploadImage } from "@/lib/storage";
+import { isSupabaseConfigured } from "@/lib/supabase";
 import {
   type CatalogProduct,
   type ProductInput,
@@ -63,11 +65,17 @@ export function ProductDrawer({
   function toggleGroup(id: string) {
     setForm((f) => ({ ...f, addonGroupIds: f.addonGroupIds.includes(id) ? f.addonGroupIds.filter((x) => x !== id) : [...f.addonGroupIds, id] }));
   }
-  function onFile(file: File | undefined) {
+  async function onFile(file: File | undefined) {
     if (!file) return;
+    // Com Supabase: sobe pro Storage e salva a URL pública (nada de Base64 no banco).
+    if (isSupabaseConfigured) {
+      const url = await uploadImage(file, "produtos");
+      if (url) { set("image", url); return; }
+    }
+    // Fallback (sem backend): preview local via dataURL.
     const reader = new FileReader();
     reader.onload = () => set("image", String(reader.result));
-    reader.readAsDataURL(file); // FUTURO: enviar p/ Supabase Storage e salvar a URL
+    reader.readAsDataURL(file);
   }
   function save() {
     if (!form.name.trim()) return;

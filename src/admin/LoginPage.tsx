@@ -1,25 +1,58 @@
 import { useState } from "react";
 import logoWhite from "@/assets/logo-white.png";
-import { checkCredentials, ADMIN_EMAIL } from "./auth";
+import { isSupabaseConfigured } from "@/lib/supabase";
+import { signIn, requestPasswordReset } from "@/lib/auth";
 
 /**
- * LoginPage — login do painel (valida credenciais no frontend, sem banco ainda).
+ * LoginPage — login do painel via Supabase Auth (sem credenciais no frontend).
  * Campos: e-mail, senha, lembrar acesso, entrar, esqueci minha senha.
+ * Sem Supabase configurado → modo de desenvolvimento local (entra direto).
  */
 export function LoginPage({ onEnter }: { onEnter: (remember: boolean) => void }) {
-  const [email, setEmail] = useState(ADMIN_EMAIL);
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  function submit(e: { preventDefault: () => void }) {
+  async function submit(e: { preventDefault: () => void }) {
     e.preventDefault();
-    if (checkCredentials(email, password)) {
-      setError(false);
+    setError(null);
+    setNotice(null);
+
+    // Modo desenvolvimento (sem backend): entra sem senha, só para testes locais.
+    if (!isSupabaseConfigured) {
       onEnter(remember);
-    } else {
-      setError(true);
+      return;
     }
+
+    setLoading(true);
+    const res = await signIn(email, password);
+    setLoading(false);
+    if (res.ok) {
+      onEnter(remember);
+    } else if (res.error === "not-admin") {
+      setError("Este usuário não tem acesso ao painel.");
+    } else {
+      setError("E-mail ou senha incorretos.");
+    }
+  }
+
+  async function forgotPassword(e: { preventDefault: () => void }) {
+    e.preventDefault();
+    setError(null);
+    setNotice(null);
+    if (!isSupabaseConfigured) {
+      setNotice("Recuperação de senha disponível com o Supabase configurado.");
+      return;
+    }
+    if (!email.trim()) {
+      setError("Informe seu e-mail para recuperar a senha.");
+      return;
+    }
+    await requestPasswordReset(email);
+    setNotice("Se este e-mail tiver acesso, enviamos um link para redefinir a senha.");
   }
 
   return (
@@ -40,6 +73,7 @@ export function LoginPage({ onEnter }: { onEnter: (remember: boolean) => void })
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="voce@avilezburguer.com"
+          autoComplete="email"
           className="mb-4 h-12 w-full rounded-lg border border-border bg-secondary px-3.5 text-[0.95rem] focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
         />
         <label className="mb-1.5 block text-sm font-semibold">Senha</label>
@@ -48,12 +82,12 @@ export function LoginPage({ onEnter }: { onEnter: (remember: boolean) => void })
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="••••••••"
+          autoComplete="current-password"
           className="mb-2 h-12 w-full rounded-lg border border-border bg-secondary px-3.5 text-[0.95rem] focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
         />
 
-        {error && (
-          <p className="mb-3 text-sm text-red-400">E-mail ou senha incorretos.</p>
-        )}
+        {error && <p className="mb-3 text-sm text-red-400">{error}</p>}
+        {notice && <p className="mb-3 text-sm text-emerald-400">{notice}</p>}
 
         <div className="mb-5 mt-3 flex items-center justify-between text-sm">
           <label className="flex cursor-pointer items-center gap-2 text-muted-foreground">
@@ -65,16 +99,17 @@ export function LoginPage({ onEnter }: { onEnter: (remember: boolean) => void })
             />
             Lembrar acesso
           </label>
-          <a href="#" className="text-primary hover:underline" onClick={(e) => e.preventDefault()}>
+          <a href="#" className="text-primary hover:underline" onClick={forgotPassword}>
             Esqueci minha senha
           </a>
         </div>
 
         <button
           type="submit"
-          className="h-12 w-full rounded-lg bg-primary font-extrabold text-primary-foreground transition-[background-color,transform] hover:bg-brand-yellow-soft active:scale-[0.99]"
+          disabled={loading}
+          className="h-12 w-full rounded-lg bg-primary font-extrabold text-primary-foreground transition-[background-color,transform] hover:bg-brand-yellow-soft active:scale-[0.99] disabled:opacity-60"
         >
-          Entrar
+          {loading ? "Entrando…" : "Entrar"}
         </button>
       </form>
     </div>

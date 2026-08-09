@@ -19,26 +19,47 @@ export interface Coupon {
   active: boolean;
 }
 
+import { fetchCoupons, pushCoupons, fetchCouponUsage } from "@/lib/db";
+import { isSupabaseConfigured } from "@/lib/supabase";
+
 const KEY = "avilez_coupons";
+let cache: Coupon[] | null = null;
+let usageCache: Record<string, number> = {};
 
 function uid(): string {
   return `cpn_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
 function read(): Coupon[] {
+  if (cache) return cache;
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) || "[]");
-    return Array.isArray(raw) ? raw : [];
+    cache = Array.isArray(raw) ? raw : [];
+    return cache;
   } catch {
     return [];
   }
 }
 function write(list: Coupon[]): void {
+  cache = list;
   try {
     localStorage.setItem(KEY, JSON.stringify(list));
   } catch {
     /* ignore */
   }
+  if (isSupabaseConfigured) void pushCoupons(list);
+}
+
+// hidratação Supabase → cache
+if (isSupabaseConfigured) {
+  void fetchCoupons().then((remote) => {
+    if (remote) {
+      cache = remote;
+      try { localStorage.setItem(KEY, JSON.stringify(remote)); } catch { /* ignore */ }
+      emit();
+    }
+  });
+  void fetchCouponUsage().then((u) => { if (u) { usageCache = u; emit(); } });
 }
 
 type Listener = () => void;
@@ -82,6 +103,10 @@ export function deleteCoupon(id: string): void {
 
 /** Quantidade de usos reais de um cupom (pedidos não cancelados). */
 export function couponUsage(code: string): number {
+  if (isSupabaseConfigured) {
+    const c = read().find((x) => x.code.toUpperCase() === code.trim().toUpperCase());
+    if (c && usageCache[c.id] != null) return usageCache[c.id];
+  }
   const up = code.trim().toUpperCase();
   return listOrders().filter((o) => o.status !== "cancelado" && (o.coupon ?? "").toUpperCase() === up).length;
 }

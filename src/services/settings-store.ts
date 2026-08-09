@@ -49,7 +49,12 @@ export interface Settings {
   landing: LandingSettings;
 }
 
+import { fetchSettings, pushSettings, pushStoreOpen } from "@/lib/db";
+import { isSupabaseConfigured } from "@/lib/supabase";
+
 const KEY = "avilez_settings";
+// cache em memória (API síncrona preservada; Supabase hidrata no load)
+let cache: Settings | null = null;
 const CHANNEL = "avilez_settings_rt";
 
 function defaults(): Settings {
@@ -90,24 +95,27 @@ function defaults(): Settings {
   };
 }
 
+function mergeDefaults(parsed: Partial<Settings>): Settings {
+  const d = defaults();
+  return {
+    business: { ...d.business, ...parsed.business },
+    hours: parsed.hours?.length ? parsed.hours : d.hours,
+    storeOpen: typeof parsed.storeOpen === "boolean" ? parsed.storeOpen : d.storeOpen,
+    admin: { ...d.admin, ...parsed.admin },
+    landing: {
+      ...d.landing, ...parsed.landing,
+      sectionsVisible: { ...d.landing.sectionsVisible, ...parsed.landing?.sectionsVisible },
+    },
+  };
+}
 function read(): Settings {
+  if (cache) return cache;
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<Settings>;
-      const d = defaults();
-      // merge raso + garantia das seções
-      return {
-        business: { ...d.business, ...parsed.business },
-        hours: parsed.hours?.length ? parsed.hours : d.hours,
-        storeOpen: typeof parsed.storeOpen === "boolean" ? parsed.storeOpen : d.storeOpen,
-        admin: { ...d.admin, ...parsed.admin },
-        landing: {
-          ...d.landing,
-          ...parsed.landing,
-          sectionsVisible: { ...d.landing.sectionsVisible, ...parsed.landing?.sectionsVisible },
-        },
-      };
+      cache = mergeDefaults(parsed);
+      return cache;
     }
   } catch {
     /* ignore */
@@ -124,6 +132,7 @@ function ensureChannel() {
   }
 }
 function write(s: Settings): void {
+  cache = s;
   try {
     localStorage.setItem(KEY, JSON.stringify(s));
   } catch {
@@ -132,6 +141,24 @@ function write(s: Settings): void {
   ensureChannel();
   channel?.postMessage("changed");
   listeners.forEach((l) => l());
+  if (isSupabaseConfigured) void pushSettings(s);
+}
+
+// hidratação Supabase → cache (config compartilhada entre dispositivos)
+export function hydrateSettings() {
+  void fetchSettings().then((remote) => {
+    if (remote) {
+      cache = mergeDefaults(remote);
+      try { localStorage.setItem(KEY, JSON.stringify(cache)); } catch { /* ignore */ }
+      listeners.forEach((l) => l());
+    }
+  });
+}
+// No load, busca o estado atual do Supabase (config compartilhada). A
+// subscription Realtime de loja aberta/fechada é gerenciada por
+// useStoreStatusSync() (com cleanup e re-fetch ao reconectar).
+if (isSupabaseConfigured) {
+  hydrateSettings();
 }
 
 export function subscribe(cb: () => void): () => void {
@@ -173,7 +200,15 @@ export function setHours(hours: HoursRow[]): void {
 }
 export function setStoreOpen(open: boolean): void {
   const s = read();
-  write({ ...s, storeOpen: open });
+  const next = { ...s, storeOpen: open };
+  // persiste local (UI instantânea) + escrita DEDICADA da chave "store" no
+  // Supabase (confiável, sem depender do upsert das demais configurações).
+  cache = next;
+  try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* ignore */ }
+  ensureChannel();
+  channel?.postMessage("changed");
+  listeners.forEach((l) => l());
+  if (isSupabaseConfigured) void pushStoreOpen(open);
 }
 
 /** Próximo horário de funcionamento (texto) para exibir quando fechado. */

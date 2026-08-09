@@ -4,6 +4,30 @@ import { ShopProvider } from "@/store/shop-context";
 import { CategoriesSheet, ProductSheet, CartSheet, CartBar } from "@/components/shop";
 import { CheckoutSheet } from "@/components/checkout/CheckoutSheet";
 import { AdminApp } from "@/admin/AdminApp";
+import { useStoreStatusSync } from "@/hooks";
+
+/**
+ * Site público (landing + loja). Isolado em um componente próprio para poder
+ * usar hooks (ex.: sincronização do status da loja) sem violar as regras de
+ * Hooks nos early-returns de roteamento do App.
+ */
+function PublicSite() {
+  useStoreStatusSync(); // loja aberta/fechada em tempo real entre dispositivos
+  return (
+    <ShopProvider>
+      <AppLayout headerTopTheme="light">
+        <Home />
+      </AppLayout>
+
+      {/* Experiencia de compra + checkout */}
+      <CategoriesSheet />
+      <ProductSheet />
+      <CartSheet />
+      <CartBar />
+      <CheckoutSheet />
+    </ShopProvider>
+  );
+}
 
 /**
  * App - raiz da aplicacao (roteamento por pathname, sem router externo).
@@ -31,18 +55,5 @@ export default function App() {
     return <NotFound />;
   }
 
-  return (
-    <ShopProvider>
-      <AppLayout headerTopTheme="light">
-        <Home />
-      </AppLayout>
-
-      {/* Experiencia de compra + checkout */}
-      <CategoriesSheet />
-      <ProductSheet />
-      <CartSheet />
-      <CartBar />
-      <CheckoutSheet />
-    </ShopProvider>
-  );
+  return <PublicSite />;
 }

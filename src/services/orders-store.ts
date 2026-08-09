@@ -21,6 +21,8 @@ import {
 
 const KEY = "avilez_orders";
 const CHANNEL = "avilez_orders_rt";
+import { isSupabaseConfigured } from "@/lib/supabase";
+import { fetchAdminOrders, changeStatusRemote, cancelOrderRemote } from "@/lib/db";
 
 /** Entrada do histórico de alterações de status. */
 export interface StatusEvent {
@@ -34,6 +36,10 @@ export interface ManagedOrder extends Omit<Order, "status"> {
   history: StatusEvent[];
   /** Motivo do cancelamento (quando status = "cancelado"). */
   cancelReason?: string;
+  /** UUID do pedido no Supabase (para RPC de status). */
+  dbId?: string;
+  /** Token público (rastreio). */
+  publicToken?: string;
 }
 
 // ---------- persistência ----------
@@ -61,6 +67,19 @@ function normalize(o: Order & { history?: StatusEvent[]; cancelReason?: string }
       : [{ status, at: o.createdAt || new Date().toISOString() }];
   return { ...o, status, history, cancelReason: o.cancelReason };
 }
+
+// ---------- hidratação (Supabase → mirror local) ----------
+// Com Supabase + admin autenticado (RLS), o admin lê os pedidos reais do banco
+// (cross-device). O mirror local mantém a UI síncrona; o Realtime chama isto.
+export async function hydrateAdminOrders(): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  const remote = await fetchAdminOrders();
+  if (remote) {
+    writeRaw(remote);
+    broadcast();
+  }
+}
+if (isSupabaseConfigured) void hydrateAdminOrders();
 
 // ---------- API pública ----------
 export function listOrders(): ManagedOrder[] {
@@ -94,6 +113,56 @@ export function advanceStatus(id: string): void {
   const next = nextStatus(current.status);
   if (!next) return;
   updateStatus(id, next);
+}
+
+/**
+ * Muda o status pela RPC quando o Supabase está ativo (baixa de estoque
+ * idempotente ao confirmar + Realtime). Retorna erro estruturado (ex.: estoque
+ * insuficiente) para a UI mostrar — NUNCA finge sucesso local.
+ */
+export async function setStatusRemote(id: string, status: OrderStatus): Promise<{ ok: boolean; error?: string }> {
+  if (!isSupabaseConfigured) {
+    updateStatus(id, status);
+    return { ok: true };
+  }
+  const order = getOrder(id);
+  if (!order?.dbId) return { ok: false, error: "Pedido não encontrado no servidor." };
+  try {
+    await changeStatusRemote(order.dbId, status);
+    await hydrateAdminOrders();
+    return { ok: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    if (msg.includes("ESTOQUE_INSUFICIENTE")) {
+      const faltantes = msg.split("ESTOQUE_INSUFICIENTE:")[1]?.trim();
+      return { ok: false, error: faltantes ? `Estoque insuficiente para confirmar: ${faltantes}.` : "Estoque insuficiente para confirmar este pedido." };
+    }
+    return { ok: false, error: "Não foi possível atualizar o pedido. Tente novamente." };
+  }
+}
+
+export async function advanceStatusRemote(id: string): Promise<{ ok: boolean; error?: string }> {
+  const current = getOrder(id);
+  if (!current) return { ok: false, error: "Pedido não encontrado." };
+  const next = nextStatus(current.status);
+  if (!next) return { ok: true };
+  return setStatusRemote(id, next);
+}
+
+export async function cancelOrderRemoteAction(id: string, reason: string): Promise<{ ok: boolean; error?: string }> {
+  if (!isSupabaseConfigured) {
+    cancelOrder(id, reason);
+    return { ok: true };
+  }
+  const order = getOrder(id);
+  if (!order?.dbId) return { ok: false, error: "Pedido não encontrado no servidor." };
+  try {
+    await cancelOrderRemote(order.dbId, reason);
+    await hydrateAdminOrders();
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Não foi possível cancelar o pedido. Tente novamente." };
+  }
 }
 
 /**

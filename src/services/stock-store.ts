@@ -84,7 +84,11 @@ export function stockStatus(i: Ingredient): StockStatus {
   return "ok";
 }
 
+import { fetchStock, pushIngredientsAndRecipes, pushMovement } from "@/lib/db";
+import { isSupabaseConfigured } from "@/lib/supabase";
+
 const KEY = "avilez_stock";
+let cache: Stock | null = null;
 const CHANNEL = "avilez_stock_rt";
 const CONSUMED_KEY = "avilez_stock_consumed"; // ids de pedidos já baixados (idempotência)
 const CURRENT_USER = "Avilez Burguer";
@@ -130,11 +134,12 @@ function seedStock(): Stock {
 
 // ---------- persistência ----------
 function read(): Stock {
+  if (cache) return cache;
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const s = JSON.parse(raw) as Stock;
-      if (s && s.ingredients) return s;
+      if (s && s.ingredients) { cache = s; return cache; }
     }
   } catch {
     /* ignore */
@@ -144,12 +149,24 @@ function read(): Stock {
   return seeded;
 }
 function write(s: Stock): void {
+  cache = s;
   try {
     localStorage.setItem(KEY, JSON.stringify(s));
   } catch {
     /* ignore */
   }
-  // FUTURO (Supabase): upsert em ingredients / movements / recipes
+  if (isSupabaseConfigured) void pushIngredientsAndRecipes(s);
+}
+
+// hidratação Supabase → cache
+if (isSupabaseConfigured) {
+  void fetchStock().then((remote) => {
+    if (remote) {
+      cache = remote;
+      try { localStorage.setItem(KEY, JSON.stringify(remote)); } catch { /* ignore */ }
+      listeners.forEach((l) => l());
+    }
+  });
 }
 
 // ---------- pub/sub ----------
@@ -270,15 +287,18 @@ function applyDelta(s: Stock, ingredientId: string, delta: number) {
 }
 /** Adiciona estoque (entrada). */
 export function addStock(id: string, qty: number, reason: string): void {
-  const s = read(); applyDelta(s, id, Math.abs(qty)); s.movements.push(mv(id, "entrada", qty, reason || "Entrada")); commit(s);
+  const s = read(); applyDelta(s, id, Math.abs(qty)); const m = mv(id, "entrada", qty, reason || "Entrada"); s.movements.push(m); commit(s);
+  if (isSupabaseConfigured) void pushMovement(m, s.ingredients.find((x) => x.id === id)?.qty ?? 0);
 }
 /** Remove estoque (saída). */
 export function removeStock(id: string, qty: number, reason: string): void {
-  const s = read(); applyDelta(s, id, -Math.abs(qty)); s.movements.push(mv(id, "saida", qty, reason || "Saída")); commit(s);
+  const s = read(); applyDelta(s, id, -Math.abs(qty)); const m = mv(id, "saida", qty, reason || "Saída"); s.movements.push(m); commit(s);
+  if (isSupabaseConfigured) void pushMovement(m, s.ingredients.find((x) => x.id === id)?.qty ?? 0);
 }
 /** Registra perda. */
 export function registerLoss(id: string, qty: number, reason: string): void {
-  const s = read(); applyDelta(s, id, -Math.abs(qty)); s.movements.push(mv(id, "perda", qty, reason || "Perda")); commit(s);
+  const s = read(); applyDelta(s, id, -Math.abs(qty)); const m = mv(id, "perda", qty, reason || "Perda"); s.movements.push(m); commit(s);
+  if (isSupabaseConfigured) void pushMovement(m, s.ingredients.find((x) => x.id === id)?.qty ?? 0);
 }
 /** Corrige para uma quantidade exata (ajuste manual). */
 export function correctStock(id: string, newQty: number, reason: string): void {
@@ -287,8 +307,10 @@ export function correctStock(id: string, newQty: number, reason: string): void {
   if (!cur) return;
   const delta = newQty - cur.qty;
   applyDelta(s, id, delta);
-  s.movements.push(mv(id, "ajuste", Math.abs(delta), reason || "Ajuste manual"));
+  const m = mv(id, "ajuste", Math.abs(delta), reason || "Ajuste manual");
+  s.movements.push(m);
   commit(s);
+  if (isSupabaseConfigured) void pushMovement(m, s.ingredients.find((x) => x.id === id)?.qty ?? 0);
 }
 
 // ---------- receita técnica ----------

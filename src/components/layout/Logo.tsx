@@ -42,7 +42,7 @@ export function Logo({ className, size = "md", theme = "brand" }: LogoProps) {
         alt="Avilez Burguer"
         width={280}
         height={189}
-        className={cn("w-auto", sizeMap[size])}
+        className={cn("block w-auto shrink-0 object-contain", sizeMap[size])}
       />
     </a>
   );

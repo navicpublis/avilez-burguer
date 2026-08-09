@@ -16,16 +16,22 @@ export interface Note {
   createdAt: string;
 }
 
+import { fetchNotes, pushNotes } from "@/lib/db";
+import { isSupabaseConfigured } from "@/lib/supabase";
+
 const KEY = "avilez_notes";
+let cache: Note[] | null = null;
 const CHANNEL = "avilez_notes_rt";
 
 function uid(): string {
   return `note_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 function read(): Note[] {
+  if (cache) return cache;
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) || "[]");
-    return Array.isArray(raw) ? raw : [];
+    cache = Array.isArray(raw) ? raw : [];
+    return cache;
   } catch {
     return [];
   }
@@ -39,6 +45,7 @@ function ensureChannel() {
   }
 }
 function write(list: Note[]): void {
+  cache = list;
   try {
     localStorage.setItem(KEY, JSON.stringify(list));
   } catch {
@@ -47,6 +54,18 @@ function write(list: Note[]): void {
   ensureChannel();
   channel?.postMessage("changed");
   listeners.forEach((l) => l());
+  if (isSupabaseConfigured) void pushNotes(list);
+}
+
+// hidratação Supabase → cache
+if (isSupabaseConfigured) {
+  void fetchNotes().then((remote) => {
+    if (remote) {
+      cache = remote;
+      try { localStorage.setItem(KEY, JSON.stringify(remote)); } catch { /* ignore */ }
+      listeners.forEach((l) => l());
+    }
+  });
 }
 export function subscribe(cb: () => void): () => void {
   ensureChannel();

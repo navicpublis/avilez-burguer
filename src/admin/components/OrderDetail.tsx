@@ -6,17 +6,31 @@ import { formatCurrency } from "@/utils/format";
 import { WHATSAPP_NUMBER, type CustomerData } from "@/services/orders";
 import {
   updateStatus,
+  setStatusRemote,
   updateOrderCustomer,
   type ManagedOrder,
 } from "@/services/orders-store";
+import { isSupabaseConfigured } from "@/lib/supabase";
 import { ALL_STATUSES, STATUS_META } from "@/services/order-status";
 import { StatusBadge } from "@/components/order/StatusBadge";
 import { OrderTimeline } from "@/components/order/OrderTimeline";
 
 /** Botões de mudança rápida de status (um clique, sem sair da tela). */
 function StatusButtons({ order }: { order: ManagedOrder }) {
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  async function change(status: (typeof ALL_STATUSES)[number]) {
+    if (busy || order.status === status) return;
+    setError(null);
+    if (!isSupabaseConfigured) { updateStatus(order.id, status); return; }
+    setBusy(true);
+    const r = await setStatusRemote(order.id, status);
+    setBusy(false);
+    if (!r.ok) setError(r.error ?? "Não foi possível atualizar o pedido.");
+  }
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap gap-2">
       {ALL_STATUSES.map((s) => {
         const meta = STATUS_META[s];
         const active = order.status === s;
@@ -24,7 +38,8 @@ function StatusButtons({ order }: { order: ManagedOrder }) {
           <button
             key={s}
             type="button"
-            onClick={() => updateStatus(order.id, s)}
+            disabled={busy}
+            onClick={() => change(s)}
             className={cn(
               "inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-bold transition-colors active:scale-[0.98]",
               active
@@ -37,6 +52,10 @@ function StatusButtons({ order }: { order: ManagedOrder }) {
           </button>
         );
       })}
+      </div>
+      {error && (
+        <p className="rounded-md bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-300">{error}</p>
+      )}
     </div>
   );
 }

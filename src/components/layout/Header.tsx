@@ -8,6 +8,7 @@ import { MobileMenu } from "@/components/layout/MobileMenu";
 import { useScrolled } from "@/hooks";
 import { siteConfig } from "@/services/site-config";
 import { useShop } from "@/store/shop-context";
+import { useSettings } from "@/hooks";
 
 /**
  * Tema do header quando está no TOPO (transparente):
@@ -35,15 +36,21 @@ export function Header({ topTheme = "dark" }: HeaderProps) {
   const scrolled = useScrolled(8);
   const [menuOpen, setMenuOpen] = useState(false);
   const { openCategories } = useShop();
+  const { storeOpen } = useSettings();
 
-  // No topo com tema claro, o conteudo e preto (legivel sobre amarelo).
-  const onLightTop = !scrolled && topTheme === "light";
+  // Loja fechada: header entra no FLUXO (sticky) e sempre sólido, para a faixa
+  // "LOJA FECHADA" ficar logo abaixo dele, sem sobreposição. Loja aberta:
+  // comportamento aprovado (fixed, transparente no topo sobre a Hero).
+  const solid = scrolled || !storeOpen;
+  // No topo com tema claro e sólido desligado, o conteudo e preto (sobre amarelo).
+  const onLightTop = !solid && topTheme === "light";
 
   return (
     <header
       className={cn(
-        "fixed inset-x-0 top-0 z-40 pt-safe transition-colors duration-section ease-brand",
-        scrolled
+        "inset-x-0 top-0 z-40 pt-safe transition-colors duration-section ease-brand",
+        storeOpen ? "fixed" : "sticky",
+        solid
           ? "border-b border-border bg-background/90 backdrop-blur-sm"
           : "border-b border-transparent bg-transparent"
       )}

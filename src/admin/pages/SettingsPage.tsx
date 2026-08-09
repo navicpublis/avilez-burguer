@@ -2,6 +2,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Plus, Trash2, Store, Check } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { uploadImage } from "@/lib/storage";
+import { isSupabaseConfigured } from "@/lib/supabase";
 import { useSettings } from "@/hooks";
 import {
   updateBusiness,
@@ -135,9 +137,13 @@ export function SettingsPage() {
               </span>
               <label className="cursor-pointer rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-secondary">
                 Enviar foto
-                <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
                   const f = e.target.files?.[0];
                   if (!f) return;
+                  if (isSupabaseConfigured) {
+                    const url = await uploadImage(f, "avatar");
+                    if (url) { updateAdmin({ photo: url }); return; }
+                  }
                   const r = new FileReader();
                   r.onload = () => updateAdmin({ photo: String(r.result) });
                   r.readAsDataURL(f);

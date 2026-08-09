@@ -4,7 +4,7 @@ import { Container } from "@/components/ui";
 import { Logo } from "@/components/layout/Logo";
 import { formatCurrency } from "@/utils/format";
 import { WHATSAPP_NUMBER } from "@/services/orders";
-import { useOrder } from "@/hooks";
+import { useTrackedOrder } from "@/hooks";
 import { STATUS_META } from "@/services/order-status";
 import { StatusBadge } from "@/components/order/StatusBadge";
 import { OrderTimeline } from "@/components/order/OrderTimeline";
@@ -16,7 +16,7 @@ import { OrderTimeline } from "@/components/order/OrderTimeline";
  * (via subscribe do orders-store, sem recarregar).
  */
 export function OrderTrackingPage({ id }: { id: string }) {
-  const order = useOrder(id);
+  const { order, loading } = useTrackedOrder(id);
   const waHref = `https://wa.me/${WHATSAPP_NUMBER}`;
 
   return (
@@ -24,7 +24,11 @@ export function OrderTrackingPage({ id }: { id: string }) {
       <Container className="mx-auto flex max-w-lg flex-col">
         <Logo theme="brand" className="mx-auto mb-8 h-12 w-auto" />
 
-        {!order ? (
+        {loading ? (
+          <div className="rounded-2xl border border-border bg-card p-8 text-center">
+            <p className="text-muted-foreground">Carregando seu pedido…</p>
+          </div>
+        ) : !order ? (
           <div className="rounded-2xl border border-border bg-card p-8 text-center">
             <h1 className="font-condensed text-3xl uppercase">Pedido não encontrado</h1>
             <p className="mt-3 text-muted-foreground">

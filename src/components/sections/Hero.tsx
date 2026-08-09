@@ -1,6 +1,7 @@
 import { Container } from "@/components/ui";
 import burgerPhoto from "@/assets/burger.webp";
 import { useSettings } from "@/hooks";
+import { cn } from "@/lib/utils";
 
 /**
  * Hero — primeira tela do site (campo amarelo #FDBE0A + tudo em preto).
@@ -8,7 +9,7 @@ import { useSettings } from "@/hooks";
  * "Ver Cardápio" rola suave até a seção do cardápio.
  */
 export function Hero() {
-  const { landing } = useSettings();
+  const { landing, storeOpen } = useSettings();
   const goToMenu = () => {
     const el = document.getElementById("hamburgueres");
     if (!el) return;
@@ -19,7 +20,10 @@ export function Hero() {
     <section
       id="inicio"
       aria-labelledby="hero-title"
-      className="relative flex min-h-dvh flex-col overflow-hidden bg-[#fdbe0a] text-brand-ink pt-16 md:pt-20"
+      className={cn(
+        "relative flex min-h-dvh flex-col overflow-hidden bg-[#fdbe0a] text-brand-ink",
+        storeOpen ? "pt-16 md:pt-20" : "pt-6"
+      )}
     >
       <Container className="flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-2 lg:items-center lg:gap-8">
         {/* Texto + ação */}

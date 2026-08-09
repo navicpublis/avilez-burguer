@@ -21,7 +21,10 @@ import {
   trackingUrl,
   saveOrder,
   whatsappUrl,
+  placeRemoteOrder,
+  type RemoteOrderPayload,
 } from "@/services/orders";
+import { isSupabaseConfigured } from "@/lib/supabase";
 import { useShop } from "@/store/shop-context";
 import { useNeighborhoods, useSettings } from "@/hooks";
 
@@ -80,6 +83,7 @@ export function CheckoutSheet() {
   const [couponNotice, setCouponNotice] = useState<{ ok: boolean; msg: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [placed, setPlaced] = useState<Order | null>(null);
+  const [orderError, setOrderError] = useState<string | null>(null);
 
   // ao abrir: passo 1, recarrega dados salvos e tenta casar o bairro salvo
   useEffect(() => {
@@ -88,6 +92,7 @@ export function CheckoutSheet() {
     setForm(customer ?? EMPTY);
     setErrors({});
     setPlaced(null);
+    setOrderError(null);
     setSubmitting(false);
     setCouponCode(coupon ?? "");
     setCouponNotice(null);
@@ -162,33 +167,78 @@ export function CheckoutSheet() {
 
   const canConfirm = feeReady && cart.length > 0 && !submitting && storeOpen;
 
-  function confirm() {
+  async function confirm() {
     if (!canConfirm) return;
     setSubmitting(true);
-    const id = generateOrderId();
-    const order: Order = {
-      id,
-      createdAt: new Date().toISOString(),
-      status: "Aguardando envio",
-      customer: form,
-      payment,
-      changeFor: payment === "Dinheiro" && changeFor ? changeFor : null,
-      items: orderItems,
-      subtotal,
-      fee,
-      discount,
-      coupon,
-      total,
-      notes: notes.trim() || undefined,
-      trackingUrl: trackingUrl(id),
-    };
-    saveCustomer(form);
-    saveOrder(order);
-    setPlaced(order);
-    window.open(whatsappUrl(order), "_blank");
-    clear();
-    setStep(5);
-    setSubmitting(false);
+    setOrderError(null);
+
+    const localId = generateOrderId();
+    let orderId = localId;
+    let tracking = trackingUrl(localId);
+
+    try {
+      // Com Supabase ativo: o pedido é SALVO NO BANCO antes de abrir o WhatsApp.
+      // O servidor calcula taxa/desconto e devolve order_number + public_token.
+      if (isSupabaseConfigured) {
+        const payload: RemoteOrderPayload = {
+          customer: { name: form.name, phone: form.phone },
+          address: {
+            street: form.street, number: form.number, complement: form.complement,
+            reference: form.reference, cep: form.cep,
+          },
+          delivery_zone_id: neighborhoodId ?? "",
+          payment_method: payment,
+          change_for: payment === "Dinheiro" && changeFor ? changeFor.replace(",", ".") : null,
+          coupon_code: coupon,
+          customer_notes: notes.trim(),
+          items: cart.map((it) => {
+            const p = findProduct(it.id);
+            return {
+              product_id: it.id,
+              name: p?.name ?? it.id,
+              unit_price: p?.price ?? 0, // base; a RPC soma os adicionais
+              quantity: it.qty,
+              notes: it.obs,
+              addons: it.addons.map((a) => {
+                const ad = findAddon(a);
+                return { name: ad?.name ?? a, price: ad?.price ?? 0 };
+              }),
+            };
+          }),
+        };
+        const res = await placeRemoteOrder(payload); // lança erro se falhar
+        orderId = res.orderNumber;
+        tracking = trackingUrl(res.publicToken);
+      }
+
+      const order: Order = {
+        id: orderId,
+        createdAt: new Date().toISOString(),
+        status: "Aguardando envio",
+        customer: form,
+        payment,
+        changeFor: payment === "Dinheiro" && changeFor ? changeFor : null,
+        items: orderItems,
+        subtotal,
+        fee,
+        discount,
+        coupon,
+        total,
+        notes: notes.trim() || undefined,
+        trackingUrl: tracking,
+      };
+      saveCustomer(form);
+      saveOrder(order); // mantém uma cópia local (o admin vê no mesmo dispositivo)
+      setPlaced(order);
+      window.open(whatsappUrl(order), "_blank"); // só abre APÓS salvar
+      clear();
+      setStep(5);
+    } catch {
+      // Falhou salvar no Supabase: NÃO abrir WhatsApp, avisar pela UI existente.
+      setOrderError("Não foi possível registrar seu pedido agora. Verifique sua conexão e tente novamente.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   const success = step === 5 && placed;
@@ -472,6 +522,11 @@ export function CheckoutSheet() {
           {step === 4 && !storeOpen && (
             <p className="mb-2 rounded-md bg-red-500/10 px-3 py-2 text-center text-sm font-semibold text-red-300">
               Loja fechada no momento — não é possível finalizar agora.
+            </p>
+          )}
+          {step === 4 && orderError && (
+            <p className="mb-2 rounded-md bg-red-500/10 px-3 py-2 text-center text-sm font-semibold text-red-300">
+              {orderError}
             </p>
           )}
           {step === 4 && (

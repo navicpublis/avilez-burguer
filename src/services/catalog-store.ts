@@ -150,11 +150,19 @@ function seedCatalog(): Catalog {
   return { categories, groups, addons, products };
 }
 
+import { fetchCatalog, pushCatalog } from "@/lib/db";
+import { isSupabaseConfigured } from "@/lib/supabase";
+
 // ---------- persistência ----------
+// cache em memória: a API pública continua SÍNCRONA (a UI não muda). Quando o
+// Supabase está configurado, o cache é hidratado dele no load (fonte única de
+// leitura) e cada commit espelha as mudanças no Supabase em background.
+let cache: Catalog | null = null;
 function read(): Catalog {
+  if (cache) return cache;
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return JSON.parse(raw) as Catalog;
+    if (raw) { cache = JSON.parse(raw) as Catalog; return cache; }
   } catch {
     /* ignore */
   }
@@ -163,12 +171,12 @@ function read(): Catalog {
   return seeded;
 }
 function write(cat: Catalog): void {
+  cache = cat;
   try {
     localStorage.setItem(KEY, JSON.stringify(cat));
   } catch {
     /* ignore */
   }
-  // FUTURO (Supabase): upsert nas tabelas products/categories/addon_groups/addons
 }
 
 // ---------- pub/sub ----------
@@ -186,6 +194,20 @@ function commit(cat: Catalog) {
   ensureChannel();
   channel?.postMessage("changed");
   listeners.forEach((l) => l());
+  if (isSupabaseConfigured) void pushCatalog(cat); // espelha no Supabase (background)
+}
+
+// ---------- hidratação (Supabase → cache) ----------
+// No load, se o Supabase estiver configurado e tiver dados, ele vira a fonte
+// de leitura; senão mantém o cardápio local (fallback), sem quebrar nada.
+if (isSupabaseConfigured) {
+  void fetchCatalog().then((remote) => {
+    if (remote) {
+      cache = remote;
+      try { localStorage.setItem(KEY, JSON.stringify(remote)); } catch { /* ignore */ }
+      listeners.forEach((l) => l());
+    }
+  });
 }
 export function subscribe(cb: Listener): () => void {
   ensureChannel();

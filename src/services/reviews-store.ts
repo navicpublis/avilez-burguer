@@ -17,13 +17,19 @@ export interface Review {
   status: ReviewStatus;
 }
 
+import { fetchReviews, setReviewStatusRemote, deleteReviewRemote } from "@/lib/db";
+import { isSupabaseConfigured } from "@/lib/supabase";
+
 const KEY = "avilez_reviews";
+let cache: Review[] | null = null;
 const CHANNEL = "avilez_reviews_rt";
 
 function uid(): string {
   return `rev_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
+function readCache(): Review[] | null { return cache; }
 function read(): Review[] {
+  const c = readCache(); if (c) return c;
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) || "[]");
     return Array.isArray(raw) ? raw : [];
@@ -40,6 +46,7 @@ function ensureChannel() {
   }
 }
 function write(list: Review[]): void {
+  cache = list;
   try {
     localStorage.setItem(KEY, JSON.stringify(list));
   } catch {
@@ -48,6 +55,17 @@ function write(list: Review[]): void {
   ensureChannel();
   channel?.postMessage("changed");
   listeners.forEach((l) => l());
+}
+
+// hidratação Supabase → cache (admin vê todas; landing usa listApproved)
+if (isSupabaseConfigured) {
+  void fetchReviews().then((remote) => {
+    if (remote) {
+      cache = remote;
+      try { localStorage.setItem(KEY, JSON.stringify(remote)); } catch { /* ignore */ }
+      listeners.forEach((l) => l());
+    }
+  });
 }
 export function subscribe(cb: () => void): () => void {
   ensureChannel();
@@ -92,7 +110,9 @@ export function setReviewStatus(id: string, status: ReviewStatus): void {
   if (i < 0) return;
   list[i] = { ...list[i], status };
   write(list);
+  if (isSupabaseConfigured) void setReviewStatusRemote(id, status);
 }
 export function deleteReview(id: string): void {
+  if (isSupabaseConfigured) void deleteReviewRemote(id);
   write(read().filter((r) => r.id !== id));
 }
