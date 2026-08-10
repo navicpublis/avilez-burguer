@@ -12,7 +12,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useSettings } from "@/hooks";
 import { formatCurrency } from "@/utils/format";
-import { findProduct, findAddon } from "@/services/menu-data";
+import { findProduct, findAddon } from "@/services/catalog-menu";
 import { useShop } from "@/store/shop-context";
 import { QtyStepper } from "./QtyStepper";
 

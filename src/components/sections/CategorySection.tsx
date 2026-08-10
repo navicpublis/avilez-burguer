@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 import { Container, SectionHead, ProductCard, Reveal } from "@/components/ui";
-import type { Product } from "@/services/menu-data";
+import type { Product } from "@/services/catalog-menu";
 import { useShop } from "@/store/shop-context";
 
 interface CategorySectionProps {

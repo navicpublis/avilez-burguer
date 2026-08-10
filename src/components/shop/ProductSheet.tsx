@@ -11,7 +11,7 @@ import {
 } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/format";
-import { findProduct, ADDONS, OBS_SUGGESTIONS } from "@/services/menu-data";
+import { findProduct, productAddons, OBS_SUGGESTIONS } from "@/services/catalog-menu";
 import { useShop } from "@/store/shop-context";
 import { QtyStepper } from "./QtyStepper";
 
@@ -37,8 +37,9 @@ export function ProductSheet() {
 
   if (!product) return null;
 
+  const addonList = productAddons(product.id);
   const addonSum = addons.reduce((s, id) => {
-    const a = ADDONS.find((x) => x.id === id);
+    const a = addonList.find((x) => x.id === id);
     return s + (a ? a.price : 0);
   }, 0);
   const unit = product.price + addonSum;
@@ -107,7 +108,7 @@ export function ProductSheet() {
               <div className="mb-2.5 text-[0.78rem] font-bold uppercase tracking-wider text-muted-foreground">
                 Adicionais
               </div>
-              {ADDONS.map((a) => {
+              {addonList.map((a) => {
                 const on = addons.includes(a.id);
                 return (
                   <button

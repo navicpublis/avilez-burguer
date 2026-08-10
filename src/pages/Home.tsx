@@ -7,7 +7,7 @@ import {
   FinalCta,
 } from "@/components/sections";
 import { StoreClosedBanner } from "@/components/sections/StoreClosedBanner";
-import { useSettings, useMenuProducts, useCategoryVisible } from "@/hooks";
+import { useSettings, useMenuSections } from "@/hooks";
 
 /**
  * Home — landing page completa do site.
@@ -21,37 +21,27 @@ export function Home() {
   const { landing, storeOpen } = useSettings();
   const v = landing.sectionsVisible;
 
-  const burgers = useMenuProducts("hamburgueres");
-  const combos = useMenuProducts("combos");
-  const drinks = useMenuProducts("bebidas");
-  const desserts = useMenuProducts("sobremesas");
-
-  const showBurgers = useCategoryVisible("hamburgueres") && burgers.length > 0;
-  const showCombos = useCategoryVisible("combos") && combos.length > 0;
-  const showDrinks = useCategoryVisible("bebidas") && drinks.length > 0;
-  const showDesserts = useCategoryVisible("sobremesas") && desserts.length > 0;
+  const sections = useMenuSections();
 
   return (
     <>
       {!storeOpen && <StoreClosedBanner />}
       <Hero />
 
-      {v.hamburgueres && (
-        <>
-          {showBurgers && (
-            <CategorySection id="hamburgueres" tone="dark" first eyebrow="Cardápio" title={<>Nossos<br />Hambúrgueres</>} desc="Feitos na chapa, na hora. Escolha o seu." products={burgers} />
-          )}
-          {showCombos && (
-            <CategorySection id="combos" tone="light" cols3 eyebrow="Combos" title={<>Monte seu<br />Combo</>} desc="Hambúrguer, acompanhamento e bebida por menos." products={combos} />
-          )}
-          {showDrinks && (
-            <CategorySection id="bebidas" tone="dark" small eyebrow="Bebidas" title={<>Pra<br />Acompanhar</>} desc="Geladas, do jeito que a fome pede." products={drinks} />
-          )}
-          {showDesserts && (
-            <CategorySection id="sobremesas" tone="light" cols3 eyebrow="Sobremesas" title={<>Final<br />Feliz</>} desc="Aquele docinho pra fechar o pedido." products={desserts} />
-          )}
-        </>
-      )}
+      {v.hamburgueres &&
+        sections.map((sec, i) => (
+          <CategorySection
+            key={sec.category.id}
+            id={sec.category.id}
+            tone={i % 2 === 0 ? "dark" : "light"}
+            first={i === 0}
+            cols3={i % 2 === 1}
+            eyebrow={i === 0 ? "Cardápio" : sec.category.name}
+            title={sec.category.name}
+            desc={sec.category.description ?? ""}
+            products={sec.products}
+          />
+        ))}
 
       {v.avaliacoes && <Reviews />}
       {v.entrega && <DeliveryArea />}

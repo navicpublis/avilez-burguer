@@ -11,7 +11,7 @@ import {
 import {
   findProduct,
   findAddon,
-} from "@/services/menu-data";
+} from "@/services/catalog-menu";
 import { getNeighborhood } from "@/services/neighborhoods-store";
 import { validateCoupon } from "@/services/coupons-store";
 import type { CustomerData } from "@/services/orders";

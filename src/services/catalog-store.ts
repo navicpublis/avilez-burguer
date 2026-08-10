@@ -151,6 +151,7 @@ function seedCatalog(): Catalog {
 }
 
 import { fetchCatalog, pushCatalog } from "@/lib/db";
+import { subscribeCatalog } from "@/lib/realtime";
 import { isSupabaseConfigured } from "@/lib/supabase";
 
 // ---------- persistência ----------
@@ -200,7 +201,7 @@ function commit(cat: Catalog) {
 // ---------- hidratação (Supabase → cache) ----------
 // No load, se o Supabase estiver configurado e tiver dados, ele vira a fonte
 // de leitura; senão mantém o cardápio local (fallback), sem quebrar nada.
-if (isSupabaseConfigured) {
+function hydrateCatalog() {
   void fetchCatalog().then((remote) => {
     if (remote) {
       cache = remote;
@@ -208,6 +209,11 @@ if (isSupabaseConfigured) {
       listeners.forEach((l) => l());
     }
   });
+}
+if (isSupabaseConfigured) {
+  hydrateCatalog();
+  // Realtime do catálogo: mudança do Admin reflete no site sem F5 (rebusca).
+  subscribeCatalog(hydrateCatalog);
 }
 export function subscribe(cb: Listener): () => void {
   ensureChannel();

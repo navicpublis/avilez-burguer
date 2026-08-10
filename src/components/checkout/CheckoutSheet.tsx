@@ -11,7 +11,7 @@ import {
 } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/format";
-import { findProduct, findAddon } from "@/services/menu-data";
+import { findProduct, findAddon } from "@/services/catalog-menu";
 import {
   type CustomerData,
   type PaymentMethod,

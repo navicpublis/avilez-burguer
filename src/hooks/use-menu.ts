@@ -1,29 +1,46 @@
 import { useCatalog } from "./use-catalog";
-import { burgers, combos, drinks, desserts, type Product } from "@/services/menu-data";
-
-/** Todos os produtos "vendáveis" (base do carrinho vem do menu-data). */
-const ALL: Product[] = [...burgers, ...combos, ...drinks, ...desserts];
+import { menuProducts, type Product } from "@/services/catalog-menu";
 
 /**
- * Produtos de uma categoria PARA A LANDING.
- * O que o produto É (nome/preço/imagem/carrinho) vem do menu-data; em qual
- * categoria ele aparece vem do RELACIONAMENTO do catálogo (categoryId do
- * admin). Assim, mover um produto de categoria no painel reflete no cardápio
- * sem tocar no carrinho. Produtos ocultos (status) não aparecem.
+ * Produtos VISÍVEIS de uma categoria PARA A LANDING — vindos do catálogo
+ * (Supabase). Depende de useCatalog para re-renderizar quando o Admin altera
+ * o cardápio (criar/editar/ocultar/mover produto, mudar preço).
  */
 export function useMenuProducts(categoryId: string): Product[] {
-  const catalog = useCatalog();
-  return ALL.filter((p) => {
-    const cp = catalog.products.find((c) => c.id === p.id);
-    if (cp && cp.status === "oculto") return false;
-    const currentCat = cp ? cp.categoryId : p.cat;
-    return currentCat === categoryId;
-  });
+  useCatalog(); // reatividade: re-renderiza ao mudar o catálogo
+  return menuProducts(categoryId);
 }
 
-/** Uma categoria está visível no site? (existe e não está oculta). */
+/** Uma categoria está visível no site? (existe, ativa e não oculta). */
 export function useCategoryVisible(categoryId: string): boolean {
   const catalog = useCatalog();
   const c = catalog.categories.find((x) => x.id === categoryId);
   return !!c && !c.hidden;
+}
+
+/**
+ * Categorias visíveis do site, na ordem — para a landing montar as seções
+ * dinamicamente (sem categorias fixas no JSX).
+ */
+export function useVisibleCategories() {
+  const catalog = useCatalog();
+  return catalog.categories
+    .filter((c) => !c.hidden)
+    .slice()
+    .sort((a, b) => a.order - b.order);
+}
+
+/**
+ * Seções do cardápio para a landing: uma por categoria VISÍVEL que tenha
+ * produtos, na ordem do catálogo. A landing monta as seções a partir disto
+ * (sem categorias fixas no JSX).
+ */
+export function useMenuSections() {
+  const catalog = useCatalog();
+  return catalog.categories
+    .filter((c) => !c.hidden)
+    .slice()
+    .sort((a, b) => a.order - b.order)
+    .map((c) => ({ category: c, products: menuProducts(c.id) }))
+    .filter((sec) => sec.products.length > 0);
 }

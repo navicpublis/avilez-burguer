@@ -28,6 +28,27 @@ begin
     where pubname='supabase_realtime' and schemaname='public' and tablename='app_settings') then
     alter publication supabase_realtime add table app_settings;
   end if;
+  -- catálogo: site público reflete mudanças do Admin em tempo real
+  if not exists (select 1 from pg_publication_tables
+    where pubname='supabase_realtime' and schemaname='public' and tablename='categories') then
+    alter publication supabase_realtime add table categories;
+  end if;
+  if not exists (select 1 from pg_publication_tables
+    where pubname='supabase_realtime' and schemaname='public' and tablename='products') then
+    alter publication supabase_realtime add table products;
+  end if;
+  if not exists (select 1 from pg_publication_tables
+    where pubname='supabase_realtime' and schemaname='public' and tablename='addon_groups') then
+    alter publication supabase_realtime add table addon_groups;
+  end if;
+  if not exists (select 1 from pg_publication_tables
+    where pubname='supabase_realtime' and schemaname='public' and tablename='addons') then
+    alter publication supabase_realtime add table addons;
+  end if;
+  if not exists (select 1 from pg_publication_tables
+    where pubname='supabase_realtime' and schemaname='public' and tablename='product_addon_groups') then
+    alter publication supabase_realtime add table product_addon_groups;
+  end if;
 end $$;
 
 -- 2) Broadcast seguro por pedido (keyed pelo public_token)

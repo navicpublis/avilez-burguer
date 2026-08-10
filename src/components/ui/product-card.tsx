@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/format";
-import type { Product } from "@/services/menu-data";
+import type { Product } from "@/services/catalog-menu";
 
 interface ProductCardProps {
   product: Product;

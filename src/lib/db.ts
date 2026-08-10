@@ -69,7 +69,9 @@ export async function fetchCatalog(): Promise<Catalog | null> {
       supabase!.from("product_addon_groups").select("*"),
     ]);
     if (cats.error || prods.error || groups.error || adds.error || links.error) return null;
-    if (!prods.data?.length && !cats.data?.length) return null; // banco ainda não semeado → mantém local
+    // Supabase é a fonte oficial: se as queries funcionaram, use o que veio do
+    // banco MESMO que vazio (não repovoa o cardápio antigo). Só mantém o
+    // fallback local em caso de ERRO (tratado no return null acima).
 
     const byProduct = new Map<string, string[]>();
     (links.data ?? []).forEach((l: any) => byProduct.set(l.product_id, [...(byProduct.get(l.product_id) ?? []), l.group_id]));
