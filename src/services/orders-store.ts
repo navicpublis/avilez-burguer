@@ -22,7 +22,7 @@ import {
 const KEY = "avilez_orders";
 const CHANNEL = "avilez_orders_rt";
 import { isSupabaseConfigured } from "@/lib/supabase";
-import { fetchAdminOrders, changeStatusRemote, cancelOrderRemote } from "@/lib/db";
+import { fetchAdminOrders, changeStatusRemote, cancelOrderRemote, deleteOrderRemote } from "@/lib/db";
 
 /** Entrada do histórico de alterações de status. */
 export interface StatusEvent {
@@ -147,6 +147,33 @@ export async function advanceStatusRemote(id: string): Promise<{ ok: boolean; er
   const next = nextStatus(current.status);
   if (!next) return { ok: true };
   return setStatusRemote(id, next);
+}
+
+/** Remove o pedido do mirror local (usado no fallback sem Supabase). */
+export function deleteOrder(id: string): void {
+  const list = readRaw().filter((o) => o.id !== id);
+  writeRaw(list);
+  broadcast();
+}
+
+/**
+ * Exclui um pedido. Com Supabase, chama a RPC segura (admin) e re-hidrata do
+ * banco; sem Supabase, remove do mirror local. Retorna {ok,error} p/ a UI.
+ */
+export async function deleteOrderRemoteAction(id: string): Promise<{ ok: boolean; error?: string }> {
+  if (!isSupabaseConfigured) {
+    deleteOrder(id);
+    return { ok: true };
+  }
+  const order = getOrder(id);
+  if (!order?.dbId) return { ok: false, error: "Pedido não encontrado no servidor." };
+  try {
+    await deleteOrderRemote(order.dbId);
+    await hydrateAdminOrders();
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Não foi possível excluir o pedido. Tente novamente." };
+  }
 }
 
 export async function cancelOrderRemoteAction(id: string, reason: string): Promise<{ ok: boolean; error?: string }> {

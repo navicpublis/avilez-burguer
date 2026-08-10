@@ -383,6 +383,13 @@ export async function fetchAdminOrders(): Promise<ManagedOrder[] | null> {
   } catch { return null; }
 }
 
+/** Exclui um pedido (admin) via RPC segura. Lança em falha. */
+export async function deleteOrderRemote(dbId: string): Promise<void> {
+  const sb = requireSupabase();
+  const { error } = await sb.rpc("delete_order_admin", { p_order_id: dbId });
+  if (error) throw new Error(error.message || "Falha ao excluir o pedido.");
+}
+
 /** Muda status via RPC (baixa estoque idempotente ao confirmar). Lança em falha. */
 export async function changeStatusRemote(dbId: string, status: OrderStatus): Promise<void> {
   const sb = requireSupabase();

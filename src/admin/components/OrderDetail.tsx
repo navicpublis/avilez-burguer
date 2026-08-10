@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, MapPin, Phone, MessageCircle, Pencil } from "lucide-react";
+import { X, MapPin, Phone, MessageCircle, Pencil, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/format";
@@ -8,6 +8,7 @@ import {
   updateStatus,
   setStatusRemote,
   updateOrderCustomer,
+  deleteOrderRemoteAction,
   type ManagedOrder,
 } from "@/services/orders-store";
 import { isSupabaseConfigured } from "@/lib/supabase";
@@ -81,6 +82,24 @@ export function OrderDetail({
     minute: "2-digit",
   });
   const waHref = `https://wa.me/${WHATSAPP_NUMBER}`;
+
+  const [askDelete, setAskDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function handleDelete() {
+    if (deleting) return;
+    setDeleteError(null);
+    setDeleting(true);
+    const r = await deleteOrderRemoteAction(order.id);
+    setDeleting(false);
+    if (r.ok) {
+      setAskDelete(false);
+      onClose(); // some da lista via re-hidratação/broadcast
+    } else {
+      setDeleteError(r.error ?? "Não foi possível excluir o pedido.");
+    }
+  }
   const setF = (k: keyof CustomerData, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   function saveEdit() {
@@ -251,8 +270,53 @@ export function OrderDetail({
           <a href={waHref} target="_blank" rel="noreferrer" className="mt-4 flex h-11 items-center justify-center gap-2 rounded-lg border border-border font-bold hover:bg-secondary">
             <MessageCircle className="size-4" /> Falar com o cliente
           </a>
+
+          {/* ação destrutiva discreta — excluir pedido (ex.: pedidos de teste) */}
+          <button
+            type="button"
+            onClick={() => { setDeleteError(null); setAskDelete(true); }}
+            className="mt-3 flex h-10 w-full items-center justify-center gap-1.5 rounded-lg text-sm font-semibold text-red-400 transition-colors hover:bg-red-500/10"
+          >
+            <Trash2 className="size-4" /> Excluir pedido
+          </button>
         </div>
       </aside>
+
+      {/* modal de confirmação de exclusão */}
+      {askDelete && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-5" onClick={() => !deleting && setAskDelete(false)}>
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6" onClick={(e) => e.stopPropagation()}>
+            <h2 className="font-condensed text-2xl uppercase">Excluir pedido?</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Essa ação não pode ser desfeita. O pedido será removido do sistema.
+            </p>
+            <div className="mt-4 rounded-lg border border-border bg-secondary p-3 text-sm">
+              <div className="flex justify-between"><span className="text-muted-foreground">Pedido</span><span className="font-display font-bold">#{order.id}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Cliente</span><span className="font-semibold">{c.name || "—"}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Total</span><span className="font-display font-bold">{formatCurrency(order.total)}</span></div>
+            </div>
+            {deleteError && <p className="mt-3 text-sm text-red-400">{deleteError}</p>}
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setAskDelete(false)}
+                disabled={deleting}
+                className="h-11 flex-1 rounded-lg border border-border font-bold text-muted-foreground transition-colors hover:text-foreground disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="h-11 flex-1 rounded-lg bg-red-500 font-extrabold text-white transition-colors hover:bg-red-600 active:scale-[0.99] disabled:opacity-60"
+              >
+                {deleting ? "Excluindo…" : "Excluir pedido"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
