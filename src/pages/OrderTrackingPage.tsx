@@ -6,6 +6,7 @@ import { formatCurrency } from "@/utils/format";
 import { WHATSAPP_NUMBER } from "@/services/orders";
 import { useTrackedOrder } from "@/hooks";
 import { OrderReviewCard } from "@/components/order/OrderReviewCard";
+import { OrderReceivedConfirm } from "@/components/order/OrderReceivedConfirm";
 import { STATUS_META } from "@/services/order-status";
 import { StatusBadge } from "@/components/order/StatusBadge";
 import { OrderTimeline } from "@/components/order/OrderTimeline";
@@ -61,6 +62,9 @@ export function OrderTrackingPage({ id }: { id: string }) {
               <div className="mb-4 text-[0.78rem] font-bold uppercase tracking-wider text-muted-foreground">Acompanhe seu pedido</div>
               <OrderTimeline status={order.status} history={order.history} />
             </div>
+
+            {/* cliente confirma o recebimento — só quando SAIU PARA ENTREGA */}
+            {order.status === "entrega" && <OrderReceivedConfirm token={id} />}
 
             {/* resumo */}
             <div className="mt-4 rounded-2xl border border-border bg-card p-6">

@@ -423,6 +423,16 @@ export async function deleteReviewRemote(id: string): Promise<void> {
 }
 
 /** Cliente envia avaliação pela RPC segura (por public_token). Lança em falha. */
+/** Cliente confirma o recebimento (saiu para entrega → entregue) pela RPC
+ *  segura, por public_token. Idempotente; lança em status inválido. */
+export async function confirmOrderReceived(token: string): Promise<{ ok: boolean; status?: string }> {
+  const sb = requireSupabase();
+  const { data, error } = await sb.rpc("confirm_order_received", { p_token: token });
+  if (error) throw new Error(error.message || "Falha ao confirmar recebimento.");
+  const d = (data ?? {}) as any;
+  return { ok: !!d.ok, status: d.status };
+}
+
 /** Estado da avaliação de um pedido pelo public_token (para o acompanhamento):
  *  revela só se está entregue e se já foi avaliado. Sem dados sensíveis. */
 export async function fetchOrderReviewStatus(token: string): Promise<{ found: boolean; delivered: boolean; reviewed: boolean } | null> {
