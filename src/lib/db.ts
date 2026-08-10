@@ -423,6 +423,20 @@ export async function deleteReviewRemote(id: string): Promise<void> {
 }
 
 /** Cliente envia avaliação pela RPC segura (por public_token). Lança em falha. */
+/** Estado da avaliação de um pedido pelo public_token (para o acompanhamento):
+ *  revela só se está entregue e se já foi avaliado. Sem dados sensíveis. */
+export async function fetchOrderReviewStatus(token: string): Promise<{ found: boolean; delivered: boolean; reviewed: boolean } | null> {
+  if (!ok()) return null;
+  try {
+    const { data, error } = await supabase!.rpc("order_review_status", { p_token: token });
+    if (error || !data) return null;
+    const d = data as any;
+    return { found: !!d.found, delivered: !!d.delivered, reviewed: !!d.reviewed };
+  } catch {
+    return null;
+  }
+}
+
 export async function submitReviewRemote(token: string, rating: number, comment: string): Promise<void> {
   const sb = requireSupabase();
   const { error } = await sb.rpc("submit_review", { p_token: token, p_rating: rating, p_comment: comment });

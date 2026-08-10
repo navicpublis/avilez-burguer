@@ -5,6 +5,7 @@ import { Logo } from "@/components/layout/Logo";
 import { formatCurrency } from "@/utils/format";
 import { WHATSAPP_NUMBER } from "@/services/orders";
 import { useTrackedOrder } from "@/hooks";
+import { OrderReviewCard } from "@/components/order/OrderReviewCard";
 import { STATUS_META } from "@/services/order-status";
 import { StatusBadge } from "@/components/order/StatusBadge";
 import { OrderTimeline } from "@/components/order/OrderTimeline";
@@ -82,6 +83,19 @@ export function OrderTrackingPage({ id }: { id: string }) {
                 Feito em {new Date(order.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
               </div>
             </div>
+
+            {/* avaliação pós-pedido — só quando ENTREGUE */}
+            {order.status === "entregue" && (
+              <>
+                <OrderReviewCard token={id} customerName={order.customer?.name} />
+                <a
+                  href="/"
+                  className="mt-3 flex h-12 items-center justify-center gap-2 rounded-xl border border-primary/40 font-bold uppercase tracking-wide text-primary transition-colors hover:bg-primary/10"
+                >
+                  Pedir novamente 🍔
+                </a>
+              </>
+            )}
 
             {/* whatsapp + agradecimento */}
             <a href={waHref} target="_blank" rel="noreferrer" className="mt-4 flex h-[3.25rem] items-center justify-center gap-2 rounded-2xl bg-primary font-bold text-primary-foreground transition-colors hover:bg-brand-yellow-soft">
