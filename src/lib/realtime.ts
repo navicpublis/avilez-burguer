@@ -1,96 +1,233 @@
 /**
  * realtime.ts — camada única de Realtime do Supabase.
  *
- * Centraliza todas as subscriptions (nada de supabase.channel espalhado pela
- * UI). Cada função devolve um "unsubscribe" para o componente limpar no
- * unmount. Tudo é protegido por isSupabaseConfigured (no-op sem backend).
- *
- * Segurança (item 12):
- *  • ADMIN → postgres_changes em orders/order_status_history. O RLS garante
- *    que só um admin autenticado recebe (anon não recebe nada). Ativa sozinho
- *    quando o Auth entrar (Bloco 5), sem mudar este código.
- *  • CLIENTE público → NÃO assina a tabela orders. Escuta um Broadcast no
- *    tópico "order:<public_token>" (token = UUID secreto) e rebusca pela RPC
- *    segura. Nunca vê pedidos de outras pessoas.
- *  • LOJA aberta/fechada → app_settings tem SELECT público, então o cliente
- *    assina via postgres_changes normalmente.
- *
- * Reconexão: o cliente do Supabase reconecta os canais sozinho. Como as telas
- * SEMPRE buscam o estado atual ao montar (e a cada evento), um reconnect não
- * deixa status desatualizado.
+ * Centraliza todas as subscriptions.
+ * Cada função devolve um unsubscribe para cleanup no unmount.
  */
+
 import { supabase, isSupabaseConfigured } from "./supabase";
 
 type Unsub = () => void;
+
 const noop: Unsub = () => {};
 
 /**
- * Acompanhamento do cliente: escuta o tópico do pedido (por public_token) e
- * chama onChange a cada atualização de status. Seguro para o público.
+ * Gera um nome único para canais que NÃO precisam compartilhar
+ * exatamente o mesmo tópico.
+ *
+ * Isso evita colisões quando React monta/desmonta componentes,
+ * especialmente em StrictMode e durante troca de telas.
  */
-export function subscribeOrderTracking(publicToken: string, onChange: () => void): Unsub {
-  if (!isSupabaseConfigured || !supabase || !publicToken) return noop;
-  const channel = supabase
+function uniqueChannelName(prefix: string): string {
+  const id =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  return `${prefix}:${id}`;
+}
+
+/**
+ * Acompanhamento público de pedido.
+ *
+ * ESTE canal precisa manter exatamente order:<publicToken>,
+ * pois o Broadcast usa esse tópico para identificar o pedido.
+ */
+export function subscribeOrderTracking(
+  publicToken: string,
+  onChange: () => void
+): Unsub {
+  if (!isSupabaseConfigured || !supabase || !publicToken) {
+    return noop;
+  }
+
+  const client = supabase;
+
+  const channel = client
     .channel(`order:${publicToken}`)
-    .on("broadcast", { event: "status" }, () => onChange())
+    .on("broadcast", { event: "status" }, () => {
+      onChange();
+    })
     .subscribe();
+
   return () => {
-    try { supabase?.removeChannel(channel); } catch { /* ignore */ }
+    try {
+      client.removeChannel(channel);
+    } catch {
+      // ignore
+    }
   };
 }
 
 /**
- * Admin: novos pedidos e mudanças de status/cancelamento em tempo real.
- * Só entrega eventos para admin autenticado (RLS) — ativa no Bloco 5.
+ * Admin:
+ * novos pedidos e alterações de status/cancelamento em tempo real.
+ *
+ * Usa nome único para evitar reutilização de um channel já subscribed.
  */
 export function subscribeAdminOrders(onChange: () => void): Unsub {
-  if (!isSupabaseConfigured || !supabase) return noop;
-  const channel = supabase
-    .channel("admin:orders")
-    .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => onChange())
-    .on("postgres_changes", { event: "*", schema: "public", table: "order_status_history" }, () => onChange())
+  if (!isSupabaseConfigured || !supabase) {
+    return noop;
+  }
+
+  const client = supabase;
+
+  const channel = client
+    .channel(uniqueChannelName("admin-orders"))
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "orders",
+      },
+      () => {
+        onChange();
+      }
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "order_status_history",
+      },
+      () => {
+        onChange();
+      }
+    )
     .subscribe();
+
   return () => {
-    try { supabase?.removeChannel(channel); } catch { /* ignore */ }
+    try {
+      client.removeChannel(channel);
+    } catch {
+      // ignore
+    }
   };
 }
 
 /**
- * Status da loja (aberta/fechada) em tempo real para o site público.
- * app_settings é público para leitura, então funciona para todos.
+ * Status aberto/fechado da loja.
+ *
+ * Rebusca o estado após conectar/reconectar.
  */
 export function subscribeStoreStatus(onChange: () => void): Unsub {
-  if (!isSupabaseConfigured || !supabase) return noop;
-  const channel = supabase
-    .channel("public:store-status")
-    .on("postgres_changes", { event: "*", schema: "public", table: "app_settings" }, () => onChange())
-    .subscribe((status: string) => {
-      // Ao (re)conectar, rebusca o estado atual — não depende só do evento.
-      if (status === "SUBSCRIBED") onChange();
+  if (!isSupabaseConfigured || !supabase) {
+    return noop;
+  }
+
+  const client = supabase;
+
+  const channel = client
+    .channel(uniqueChannelName("store-status"))
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "app_settings",
+      },
+      () => {
+        onChange();
+      }
+    )
+    .subscribe((status) => {
+      if (status === "SUBSCRIBED") {
+        onChange();
+      }
     });
+
   return () => {
-    try { supabase?.removeChannel(channel); } catch { /* ignore */ }
+    try {
+      client.removeChannel(channel);
+    } catch {
+      // ignore
+    }
   };
 }
 
 /**
- * Catálogo público (categorias/produtos/adicionais) em tempo real. Leitura é
- * pública (RLS), então o site reflete mudanças do Admin sem F5. Rebusca também
- * ao (re)conectar.
+ * Catálogo público em tempo real.
+ *
+ * Qualquer alteração no catálogo dispara um refetch pelo callback.
+ * O canal também usa nome único para evitar colisões.
  */
 export function subscribeCatalog(onChange: () => void): Unsub {
-  if (!isSupabaseConfigured || !supabase) return noop;
-  const channel = supabase
-    .channel("public:catalog")
-    .on("postgres_changes", { event: "*", schema: "public", table: "categories" }, () => onChange())
-    .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => onChange())
-    .on("postgres_changes", { event: "*", schema: "public", table: "addon_groups" }, () => onChange())
-    .on("postgres_changes", { event: "*", schema: "public", table: "addons" }, () => onChange())
-    .on("postgres_changes", { event: "*", schema: "public", table: "product_addon_groups" }, () => onChange())
-    .subscribe((status: string) => {
-      if (status === "SUBSCRIBED") onChange();
+  if (!isSupabaseConfigured || !supabase) {
+    return noop;
+  }
+
+  const client = supabase;
+
+  const channel = client
+    .channel(uniqueChannelName("catalog"))
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "categories",
+      },
+      () => {
+        onChange();
+      }
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "products",
+      },
+      () => {
+        onChange();
+      }
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "addon_groups",
+      },
+      () => {
+        onChange();
+      }
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "addons",
+      },
+      () => {
+        onChange();
+      }
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "product_addon_groups",
+      },
+      () => {
+        onChange();
+      }
+    )
+    .subscribe((status) => {
+      if (status === "SUBSCRIBED") {
+        onChange();
+      }
     });
+
   return () => {
-    try { supabase?.removeChannel(channel); } catch { /* ignore */ }
+    try {
+      client.removeChannel(channel);
+    } catch {
+      // ignore
+    }
   };
 }
