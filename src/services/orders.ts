@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured, requireSupabase } from "@/lib/supabase";
 import { formatCurrency } from "@/utils/format";
+import { getSettings } from "@/services/settings-store";
 
 /** WhatsApp da Avilez Burguer (destino do pedido). +55 21 97190-2603 */
 export const WHATSAPP_NUMBER = "5521971902603";
@@ -119,10 +120,16 @@ const EMOJI = {
 export function buildWhatsAppMessage(order: Order): string {
   const { customer } = order;
 
-  const addressLines = [customer.street, customer.number];
-  if (customer.complement.trim()) addressLines.push(customer.complement);
-  addressLines.push(customer.neighborhood);
-  if (customer.reference.trim()) addressLines.push(`Ref.: ${customer.reference}`);
+  const isPickup = /retirada/i.test(customer.neighborhood || "");
+  const addressLines: string[] = [];
+  if (isPickup) {
+    addressLines.push("Retirada no local");
+  } else {
+    addressLines.push(customer.street, customer.number);
+    if (customer.complement.trim()) addressLines.push(customer.complement);
+    addressLines.push(customer.neighborhood);
+    if (customer.reference.trim()) addressLines.push(`Ref.: ${customer.reference}`);
+  }
 
   const itemBlocks = order.items.map((it) => {
     const lines: string[] = [`${it.qty}x ${it.name}`];
@@ -178,9 +185,15 @@ export function buildWhatsAppMessage(order: Order): string {
     "",
     DIVIDER,
     "",
-    "TOTAL",
+    `Subtotal: ${formatCurrency(order.subtotal)}`,
+    `Entrega: ${order.fee > 0 ? formatCurrency(order.fee) : "Grátis"}`,
+  );
+  if (order.discount > 0) {
+    parts.push(`Desconto: -${formatCurrency(order.discount)}`);
+  }
+  parts.push(
     "",
-    formatCurrency(order.total),
+    `TOTAL: ${formatCurrency(order.total)}`,
     "",
     DIVIDER,
     "",
@@ -194,9 +207,15 @@ export function buildWhatsAppMessage(order: Order): string {
 
 /** URL do WhatsApp já com a mensagem do pedido codificada. */
 export function whatsappUrl(order: Order): string {
-  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
-    buildWhatsAppMessage(order)
-  )}`;
+  // Número oficial: o configurado em Configurações (settings) tem prioridade.
+  let number = WHATSAPP_NUMBER;
+  try {
+    const configured = getSettings().business.whatsapp?.replace(/\D/g, "");
+    if (configured && configured.length >= 12) number = configured;
+  } catch {
+    /* usa o padrão */
+  }
+  return `https://wa.me/${number}?text=${encodeURIComponent(buildWhatsAppMessage(order))}`;
 }
 
 

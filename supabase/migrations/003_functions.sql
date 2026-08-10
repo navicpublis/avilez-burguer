@@ -85,7 +85,7 @@ declare
 begin
   -- bairro precisa existir e estar ativo
   select * into v_zone from delivery_zones
-   where id = (payload->>'delivery_zone_id')::uuid and active;
+   where id = payload->>'delivery_zone_id' and active;
   if not found then
     raise exception 'BAIRRO_INDISPONIVEL';
   end if;

@@ -8,16 +8,16 @@
 -- ════════════════════════════════════════════════════════════════
 
 -- ── Bairros / taxas (fonte única de entrega) ───────────────────
-insert into delivery_zones (name, delivery_fee, estimated_time, active, sort_order) values
-  ('Centro',                6,  '30 a 40 min', true,  0),
-  ('Praia do Saco',         8,  '35 a 45 min', true,  1),
-  ('Ibicuí',                9,  '40 a 50 min', true,  2),
-  ('Sahy',                  10, '45 a 55 min', true,  3),
-  ('Muriqui',               12, '50 a 60 min', true,  4),
-  ('Vila Muriqui',          12, '50 a 60 min', true,  5),
-  ('Conceição de Jacareí',  14, '55 a 65 min', true,  6),
-  ('Itacuruçá',             15, '60 a 70 min', false, 7)
-on conflict do nothing;
+insert into delivery_zones (id, name, delivery_fee, estimated_time, active, sort_order) values
+  ('centro',              'Centro',                6,  '30 a 40 min', true,  0),
+  ('praia-do-saco',       'Praia do Saco',         8,  '35 a 45 min', true,  1),
+  ('ibicui',              'Ibicuí',                9,  '40 a 50 min', true,  2),
+  ('sahy',                'Sahy',                  10, '45 a 55 min', true,  3),
+  ('muriqui',             'Muriqui',               12, '50 a 60 min', true,  4),
+  ('vila-muriqui',        'Vila Muriqui',          12, '50 a 60 min', true,  5),
+  ('conceicao-jacarei',   'Conceição de Jacareí',  14, '55 a 65 min', true,  6),
+  ('itacuruca',           'Itacuruçá',             15, '60 a 70 min', false, 7)
+on conflict (id) do nothing;
 
 -- ── Configurações do site/painel (linha única em app_settings) ─
 insert into app_settings (key, value) values

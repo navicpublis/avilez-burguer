@@ -137,8 +137,8 @@ export async function fetchZones(): Promise<Neighborhood[] | null> {
   if (!ok()) return null;
   try {
     const { data, error } = await supabase!.from("delivery_zones").select("*").order("sort_order");
-    if (error || !data?.length) return null;
-    return data.map((z: any) => ({ id: z.id, name: z.name, fee: Number(z.delivery_fee) || 0, avgTime: z.estimated_time ?? "", active: !!z.active }));
+    if (error) return null; // só mantém local em ERRO; banco é a fonte (mesmo vazio)
+    return (data ?? []).map((z: any) => ({ id: z.id, name: z.name, fee: Number(z.delivery_fee) || 0, avgTime: z.estimated_time ?? "", active: !!z.active }));
   } catch {
     return null;
   }
@@ -148,13 +148,15 @@ export async function pushZones(list: Neighborhood[]): Promise<void> {
   if (!ok()) return;
   try {
     const s = supabase!;
-    // ids do store são slugs ("centro"); no banco a PK é uuid → casamos por nome.
-    await Promise.all(list.map((n, i) =>
-      s.from("delivery_zones").upsert(
-        { name: n.name, delivery_fee: n.fee, estimated_time: n.avgTime, active: n.active, sort_order: i },
-        { onConflict: "name" }
-      )
-    ));
+    // ids do store = slugs estáveis = PK (text) no banco. Upsert por id + prune
+    // do que saiu (bairro apagado no Admin some do banco e do site).
+    await s.from("delivery_zones").upsert(
+      list.map((n, i) => ({
+        id: n.id, name: n.name, delivery_fee: n.fee,
+        estimated_time: n.avgTime, active: n.active, sort_order: i,
+      }))
+    );
+    await pruneNotIn(s, "delivery_zones", list.map((n) => n.id));
   } catch {
     /* mantém local */
   }

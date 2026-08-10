@@ -125,16 +125,23 @@ export function CheckoutSheet() {
     return Object.keys(e).length === 0;
   }
 
+  const selectedHoodEarly = neighborhoods.find((n) => n.id === neighborhoodId) ?? null;
+  // "Retirada no local" é um bairro de taxa 0 — detectado pelo nome.
+  const isPickupSelected = !!selectedHoodEarly && /retirada/i.test(selectedHoodEarly.name);
+
   function validateStep2(): boolean {
     const e: Errors = {};
-    if (!form.street.trim()) e.street = "Informe a rua";
-    if (!form.number.trim()) e.number = "Nº";
     if (!neighborhoodId || !feeReady) e.neighborhood = "Selecione um bairro";
+    // Retirada no local: não exige endereço de entrega.
+    if (!isPickupSelected) {
+      if (!form.street.trim()) e.street = "Informe a rua";
+      if (!form.number.trim()) e.number = "Nº";
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   }
 
-  const selectedHood = neighborhoods.find((n) => n.id === neighborhoodId) ?? null;
+  const selectedHood = selectedHoodEarly;
 
   const orderItems: OrderItem[] = useMemo(
     () =>
@@ -169,6 +176,17 @@ export function CheckoutSheet() {
 
   async function confirm() {
     if (!canConfirm) return;
+
+    // Abre a aba do WhatsApp AINDA no gesto do clique (antes de qualquer await).
+    // Sem isso, Safari/iPhone e Chrome Android bloqueiam o window.open que
+    // acontece depois do await do create_order (popup bloqueado).
+    let waWindow: Window | null = null;
+    try {
+      waWindow = window.open("", "_blank");
+    } catch {
+      waWindow = null;
+    }
+
     setSubmitting(true);
     setOrderError(null);
 
@@ -229,12 +247,25 @@ export function CheckoutSheet() {
       };
       saveCustomer(form);
       saveOrder(order); // mantém uma cópia local (o admin vê no mesmo dispositivo)
+
+      // Monta a URL do WhatsApp SEMPRE nova (a partir deste pedido).
+      const wa = whatsappUrl(order);
+      clear(); // limpa o carrinho SÓ após o pedido ter sido criado com sucesso
       setPlaced(order);
-      window.open(whatsappUrl(order), "_blank"); // só abre APÓS salvar
-      clear();
       setStep(5);
+
+      // Abre o WhatsApp: usa a aba já aberta no clique; se foi bloqueada,
+      // navega na própria aba (garantido no mobile, sem popup).
+      if (waWindow && !waWindow.closed) {
+        waWindow.location.href = wa;
+      } else {
+        window.location.href = wa;
+      }
     } catch {
       // Falhou salvar no Supabase: NÃO abrir WhatsApp, avisar pela UI existente.
+      if (waWindow && !waWindow.closed) {
+        try { waWindow.close(); } catch { /* ignore */ }
+      }
       setOrderError("Não foi possível registrar seu pedido agora. Verifique sua conexão e tente novamente.");
     } finally {
       setSubmitting(false);

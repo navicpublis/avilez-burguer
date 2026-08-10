@@ -51,7 +51,7 @@ export function Header({ topTheme = "dark" }: HeaderProps) {
         "inset-x-0 top-0 z-40 pt-safe transition-colors duration-section ease-brand",
         storeOpen ? "fixed" : "sticky",
         solid
-          ? "border-b border-border bg-background/90 backdrop-blur-sm"
+          ? "border-b border-border bg-background/95"
           : "border-b border-transparent bg-transparent"
       )}
     >

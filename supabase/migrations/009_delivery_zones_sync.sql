@@ -1,79 +1,136 @@
 -- ════════════════════════════════════════════════════════════════
--- AVILEZ BURGUER — 007_coupons_stock.sql
--- Bloco 5: uso de cupom (coupon_usages), validação de estoque insuficiente
--- na baixa automática, e registro/limite por cliente no create_order.
--- Rode DEPOIS do 006_realtime.sql.
+-- AVILEZ BURGUER — 009_delivery_zones_sync.sql   (INCREMENTAL / SEGURA)
+--
+-- Para BANCO JÁ EM PRODUÇÃO que rodou o 001 antigo (delivery_zones.id = uuid).
+-- Converte delivery_zones.id (e customer_addresses.delivery_zone_id) para TEXT,
+-- preservando TODOS os dados e relacionamentos. NÃO apaga nada.
+--
+-- Também: adiciona unique(name) (necessário para o import por nome),
+-- recria create_order com o lookup de zona em TEXT (o antigo fazia ::uuid,
+-- que quebraria com ids-slug como "retirada-no-local"), e garante o Realtime
+-- de delivery_zones (autossuficiente — não depende de reexecutar o 006).
+--
+-- Idempotente: pode rodar mais de uma vez sem erro. Rode UMA vez no SQL Editor.
 -- ════════════════════════════════════════════════════════════════
 
--- 1) Registro de uso de cupom (idempotente por pedido)
-create table if not exists coupon_usages (
-  id          uuid primary key default gen_random_uuid(),
-  coupon_id   text not null references coupons(id) on delete cascade,
-  order_id    uuid not null references orders(id) on delete cascade,
-  customer_id uuid references customers(id) on delete set null,
-  used_at     timestamptz not null default now(),
-  unique (coupon_id, order_id)   -- 1 uso por (cupom, pedido) → sem consumo duplo
-);
-create index if not exists idx_coupon_usages_coupon on coupon_usages(coupon_id);
-create index if not exists idx_coupon_usages_customer on coupon_usages(customer_id);
-
-alter table coupon_usages enable row level security;
-drop policy if exists cu_admin_all on coupon_usages;
-create policy cu_admin_all on coupon_usages for all using (is_admin()) with check (is_admin());
-
--- coupons.id no schema é text; garanta o tipo do FK acima (ajuste defensivo)
--- (se o seu coupons.id for uuid, troque "text" por "uuid" na tabela acima.)
-
--- 2) Baixa de estoque com VALIDAÇÃO de estoque insuficiente (idempotente)
---    Lança 'ESTOQUE_INSUFICIENTE: <ingredientes>' se faltar algo — assim a
---    transação que confirma o pedido é revertida por inteiro (nada parcial).
-create or replace function consume_stock_for_order(p_order_id uuid)
-returns void language plpgsql security definer set search_path = public as $$
+-- 1) Converter os tipos de UUID → TEXT preservando os dados ---------------
+--    As foreign keys que referenciam delivery_zones(id) são DESCOBERTAS via
+--    catálogo (pg_constraint) — não dependemos do nome padrão da constraint.
+do $$
 declare
-  r record; v_prev numeric; v_new numeric; v_falta text := '';
+  v_type text;
+  fk     record;
 begin
-  -- idempotência: já consumido? então não faz nada
-  if exists (select 1 from stock_movements where order_id = p_order_id and type = 'saida_automatica') then
-    return;
+  select data_type into v_type
+    from information_schema.columns
+   where table_schema='public' and table_name='delivery_zones' and column_name='id';
+
+  if v_type = 'uuid' then
+    -- 1a) solta TODAS as FKs que apontam para delivery_zones (qualquer nome),
+    --     guardando os comandos para recriar depois.
+    create temp table _fk_backup(
+      con_table text, con_name text, con_def text
+    ) on commit drop;
+
+    for fk in
+      select con.conname,
+             rel.relname                    as child_table,
+             pg_get_constraintdef(con.oid)  as def
+        from pg_constraint con
+        join pg_class rel  on rel.oid = con.conrelid           -- tabela filha
+        join pg_class fref on fref.oid = con.confrelid         -- tabela referenciada
+        join pg_namespace n on n.oid = rel.relnamespace
+       where con.contype = 'f'
+         and fref.relname = 'delivery_zones'
+         and n.nspname = 'public'
+    loop
+      insert into _fk_backup values (fk.child_table, fk.conname, fk.def);
+      execute format('alter table public.%I drop constraint %I', fk.child_table, fk.conname);
+    end loop;
+
+    -- 1b) converte as colunas (uuid → text, preservando os valores existentes).
+    --     Converte QUALQUER coluna filha que referenciava delivery_zones e a
+    --     própria PK. (customer_addresses.delivery_zone_id é o caso conhecido.)
+    alter table customer_addresses alter column delivery_zone_id type text using delivery_zone_id::text;
+    alter table delivery_zones      alter column id type text using id::text;
+
+    -- 1c) remove o default gen_random_uuid() (agora os ids são slugs do app)
+    alter table delivery_zones alter column id drop default;
+
+    -- 1d) recria exatamente as FKs que existiam (mesma definição, mesmo nome),
+    --     agora text ↔ text.
+    for fk in select * from _fk_backup loop
+      execute format('alter table public.%I add constraint %I %s',
+                     fk.con_table, fk.con_name, fk.con_def);
+    end loop;
   end if;
-
-  -- 1) valida ANTES de descontar: soma o necessário por ingrediente e compara
-  for r in
-    select rec.ingredient_id, i.name, i.current_stock, sum(rec.quantity * oi.quantity) as need
-      from order_items oi
-      join recipes rec on rec.product_id = oi.product_id
-      join ingredients i on i.id = rec.ingredient_id
-     where oi.order_id = p_order_id and oi.product_id is not null
-     group by rec.ingredient_id, i.name, i.current_stock
-  loop
-    if coalesce(r.current_stock,0) < r.need then
-      v_falta := v_falta || case when v_falta = '' then '' else ', ' end || r.name;
-    end if;
-  end loop;
-
-  if v_falta <> '' then
-    raise exception 'ESTOQUE_INSUFICIENTE: %', v_falta;
-  end if;
-
-  -- 2) desconta e registra a movimentação de cada ingrediente
-  for r in
-    select rec.ingredient_id, sum(rec.quantity * oi.quantity) as need
-      from order_items oi
-      join recipes rec on rec.product_id = oi.product_id
-     where oi.order_id = p_order_id and oi.product_id is not null
-     group by rec.ingredient_id
-  loop
-    select current_stock into v_prev from ingredients where id = r.ingredient_id for update;
-    v_new := coalesce(v_prev,0) - r.need;
-    update ingredients set current_stock = v_new where id = r.ingredient_id;
-    insert into stock_movements(ingredient_id, type, quantity, previous_stock, new_stock, order_id, reason, created_by)
-    values (r.ingredient_id, 'saida_automatica', r.need, v_prev, v_new, p_order_id,
-            'Baixa automática por confirmação de pedido', auth.uid());
-  end loop;
 end $$;
 
--- 3) create_order: registra uso do cupom e respeita o limite POR CLIENTE.
---    (recria a função do 003 com esses acréscimos; restante idêntico.)
+-- 2) unique(name) — necessário para o import por nome (ON CONFLICT (name)) --
+--    ESTRATÉGIA SEGURA para produção quando há nomes duplicados:
+--    NÃO apagamos dados. Para cada grupo de bairros com o MESMO nome, mantemos
+--    UM (o mais antigo por created_at) como canônico; nos DEMAIS: (a) repointamos
+--    os customer_addresses para o canônico (preserva os endereços/pedidos) e
+--    (b) tornamos o nome único acrescentando um sufixo " (dup N)". Assim nada é
+--    removido, os relacionamentos ficam intactos e o unique(name) pode ser criado.
+do $$
+declare
+  grp   record;
+  dupe  record;
+  n     int;
+begin
+  -- resolve grupos de nomes duplicados (se houver)
+  for grp in
+    select name, min(created_at) as keep_created
+      from delivery_zones
+     group by name
+    having count(*) > 1
+  loop
+    -- id canônico do grupo (o mais antigo; desempate por id)
+    -- e reaponta/renomeia os demais
+    n := 0;
+    for dupe in
+      select dz.id
+        from delivery_zones dz
+       where dz.name = grp.name
+       order by dz.created_at asc, dz.id asc
+      offset 1                      -- pula o canônico (o primeiro)
+    loop
+      n := n + 1;
+      -- (a) preserva endereços: aponta para o canônico do mesmo nome
+      update customer_addresses ca
+         set delivery_zone_id = (
+              select dz.id from delivery_zones dz
+               where dz.name = grp.name
+               order by dz.created_at asc, dz.id asc
+               limit 1)
+       where ca.delivery_zone_id = dupe.id;
+      -- (b) torna o nome único, sem perder o registro (fica visível como dup)
+      update delivery_zones
+         set name = grp.name || ' (dup ' || n || ')'
+       where id = dupe.id;
+    end loop;
+  end loop;
+
+  -- agora não há mais nomes duplicados → cria o unique(name) se faltar
+  if not exists (select 1 from pg_constraint where conname='delivery_zones_name_key') then
+    alter table delivery_zones add constraint delivery_zones_name_key unique (name);
+  end if;
+end $$;
+
+-- 3) Realtime de delivery_zones (autossuficiente / idempotente) -----------
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+     where pubname='supabase_realtime' and schemaname='public' and tablename='delivery_zones'
+  ) then
+    alter publication supabase_realtime add table delivery_zones;
+  end if;
+end $$;
+
+-- 4) create_order: lookup da zona em TEXT (recria a função com esse ajuste)
+--    (corpo idêntico ao 007, só o WHERE da zona já vem sem ::uuid.)
 create or replace function create_order(payload jsonb)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
@@ -208,4 +265,3 @@ begin
 end $$;
 
 grant execute on function create_order(jsonb) to anon, authenticated;
-grant execute on function consume_stock_for_order(uuid) to authenticated;

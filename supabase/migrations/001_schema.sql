@@ -138,7 +138,7 @@ create table if not exists product_addon_groups (
 -- ════════════════════════════════════════════════════════════════
 
 create table if not exists delivery_zones (
-  id                 uuid primary key default gen_random_uuid(),
+  id               text primary key,                  -- slug estável do frontend (ex.: "centro")
   name               text not null,
   delivery_fee       numeric(10,2) not null default 0,
   estimated_time     text default '',              -- "30 a 40 min" (texto livre atual)
@@ -170,7 +170,7 @@ create table if not exists customer_addresses (
   street           text default '',
   number           text default '',
   complement       text default '',
-  delivery_zone_id uuid references delivery_zones(id) on delete set null,
+  delivery_zone_id text references delivery_zones(id) on delete set null,
   reference        text default '',
   cep              text default '',
   created_at       timestamptz not null default now(),

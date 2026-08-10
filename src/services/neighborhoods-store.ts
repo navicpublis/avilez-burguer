@@ -20,6 +20,7 @@ export interface Neighborhood {
 }
 
 import { fetchZones, pushZones } from "@/lib/db";
+import { subscribeZones } from "@/lib/realtime";
 import { isSupabaseConfigured } from "@/lib/supabase";
 
 const KEY = "avilez_neighborhoods";
@@ -49,13 +50,24 @@ function seed(): Neighborhood[] {
     n("muriqui", "Muriqui", 12, "50 a 60 min"),
     n("vila-muriqui", "Vila Muriqui", 12, "50 a 60 min"),
     n("conceicao-jacarei", "Conceição de Jacareí", 14, "55 a 65 min"),
-    n("itacurucá", "Itacuruçá", 15, "60 a 70 min", false),
+    n("itacuruca", "Itacuruçá", 15, "60 a 70 min", false),
   ];
 }
 
 // ---------- persistência ----------
+// Guarda anti-catástrofe: com Supabase, o seed antigo/localStorage NÃO pode
+// virar autoridade. Só liberamos push/prune DEPOIS que a hidratação terminou,
+// e NUNCA semeamos os bairros antigos quando o Supabase é a fonte.
+let hydrated = false;
+
 function read(): Neighborhood[] {
   if (cache) return cache;
+  // Com Supabase configurado, o banco é a fonte. Antes de hidratar, devolve
+  // vazio (não semeia os bairros antigos, não grava nada, não faz prune).
+  if (isSupabaseConfigured) {
+    cache = [];
+    return cache;
+  }
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) {
@@ -65,7 +77,7 @@ function read(): Neighborhood[] {
   } catch {
     /* ignore */
   }
-  const seeded = seed();
+  const seeded = seed(); // fallback SÓ sem Supabase
   write(seeded);
   return seeded;
 }
@@ -93,18 +105,28 @@ function commit(list: Neighborhood[]) {
   ensureChannel();
   channel?.postMessage("changed");
   listeners.forEach((l) => l());
-  if (isSupabaseConfigured) void pushZones(list);
+  // push/prune SOMENTE após uma alteração explícita do Admin E com a
+  // hidratação concluída — nunca a partir de seed/estado antigo.
+  if (isSupabaseConfigured && hydrated) void pushZones(list);
 }
 
 // hidratação Supabase → cache (fonte única de leitura quando há dados)
-if (isSupabaseConfigured) {
+function hydrateZones() {
   void fetchZones().then((remote) => {
+    // remote é [] quando o banco está vazio (banco vazio = lista vazia);
+    // null só em erro de rede → aí mantém o que houver e NÃO marca hydrated.
     if (remote) {
       cache = remote;
       try { localStorage.setItem(KEY, JSON.stringify(remote)); } catch { /* ignore */ }
+      hydrated = true; // só a partir daqui o push/prune é liberado
       listeners.forEach((l) => l());
     }
   });
+}
+if (isSupabaseConfigured) {
+  hydrateZones();
+  // Realtime: criar/editar/desativar/apagar bairro no Admin reflete no site.
+  subscribeZones(hydrateZones);
 }
 export function subscribe(cb: Listener): () => void {
   ensureChannel();

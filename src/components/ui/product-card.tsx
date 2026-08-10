@@ -77,7 +77,7 @@ export function ProductCard({ product, small = false, onSelect }: ProductCardPro
           </span>
         )}
         {!available && (
-          <span className="absolute inset-0 flex items-center justify-center bg-black/60 font-display text-[0.9rem] font-bold tracking-wide text-white backdrop-blur-[1px]">
+          <span className="absolute inset-0 flex items-center justify-center bg-black/70 font-display text-[0.9rem] font-bold tracking-wide text-white">
             Indisponível
           </span>
         )}
