@@ -69,21 +69,54 @@ export async function signOutAdmin(): Promise<void> {
   }
 }
 
-/** Envia e-mail de recuperação de senha. */
+/** Envia e-mail de recuperação de senha (link vai para /admin/reset-password). */
 export async function requestPasswordReset(email: string): Promise<{ ok: boolean }> {
   if (!isSupabaseConfigured || !supabase || !email.trim()) return { ok: false };
   const redirectTo =
     typeof window !== "undefined" && window.location?.origin
-      ? `${window.location.origin}/admin`
+      ? `${window.location.origin}/admin/reset-password`
       : undefined;
   const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
   return { ok: !error };
+}
+
+/** Define uma nova senha para a sessão de recuperação em vigor. */
+export async function updatePassword(newPassword: string): Promise<{ ok: boolean; error?: string }> {
+  if (!isSupabaseConfigured || !supabase) return { ok: false, error: "indisponível" };
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+/** Há uma sessão ativa? (usado para validar o link de recuperação). */
+export async function hasActiveSession(): Promise<boolean> {
+  if (!isSupabaseConfigured || !supabase) return false;
+  const { data } = await supabase.auth.getSession();
+  return !!data.session;
 }
 
 /** Assina mudanças de autenticação (login/logout/refresh). */
 export function onAuthChange(cb: () => void): () => void {
   if (!isSupabaseConfigured || !supabase) return () => {};
   const { data } = supabase.auth.onAuthStateChange(() => cb());
+  return () => {
+    try {
+      data.subscription.unsubscribe();
+    } catch {
+      /* ignore */
+    }
+  };
+}
+
+/**
+ * Assina o evento de recuperação de senha. O Supabase, ao abrir o link do
+ * e-mail, dispara PASSWORD_RECOVERY e estabelece uma sessão temporária de
+ * recuperação. Chama onRecovery(true) quando isso acontece. Faz cleanup.
+ */
+export function onPasswordRecovery(onRecovery: (active: boolean) => void): () => void {
+  if (!isSupabaseConfigured || !supabase) return () => {};
+  const { data } = supabase.auth.onAuthStateChange((event: string) => {
+    if (event === "PASSWORD_RECOVERY") onRecovery(true);
+  });
   return () => {
     try {
       data.subscription.unsubscribe();

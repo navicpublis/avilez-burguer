@@ -17,12 +17,10 @@ npm run dev
 
 ## Login do painel
 
-## Acesso ao Admin
-
-As credenciais administrativas são gerenciadas pelo Supabase Auth e não ficam armazenadas neste repositório.
-
-> As credenciais ficam em `src/admin/auth.ts`. Isso roda no frontend e **não é segurança real** —
-> serve só até a integração com backend (Supabase Auth), quando a autenticação vai para o servidor.
+O acesso ao `/admin` é feito por **Supabase Auth**. As credenciais administrativas são
+gerenciadas pelo Supabase (Authentication) e **não ficam armazenadas no repositório**.
+O acesso exige sessão válida + perfil de admin ativo (`admin_profiles.active = true`).
+Recuperação de senha pelo próprio painel ("Esqueci minha senha").
 
 ## Como os dados funcionam hoje
 

@@ -4,6 +4,7 @@ import { ShopProvider } from "@/store/shop-context";
 import { CategoriesSheet, ProductSheet, CartSheet, CartBar } from "@/components/shop";
 import { CheckoutSheet } from "@/components/checkout/CheckoutSheet";
 import { AdminApp } from "@/admin/AdminApp";
+import { ResetPasswordPage } from "@/admin/ResetPasswordPage";
 import { useStoreStatusSync } from "@/hooks";
 
 /**
@@ -38,6 +39,11 @@ function PublicSite() {
  */
 export default function App() {
   const path = window.location.pathname;
+
+  // Redefinição de senha (link do e-mail) — rota pública, antes do gate do /admin.
+  if (path === "/admin/reset-password") {
+    return <ResetPasswordPage />;
+  }
 
   // Painel administrativo — área independente do site público.
   if (path.startsWith("/admin")) {

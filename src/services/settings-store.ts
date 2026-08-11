@@ -77,7 +77,7 @@ function defaults(): Settings {
     admin: {
       displayName: "Avilez Burguer",
       role: "Administrador",
-      email: "avilezburguer@gmail.com",
+      email: "",
       photo: null,
     },
     landing: {
