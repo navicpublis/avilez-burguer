@@ -150,7 +150,12 @@ function seedCatalog(): Catalog {
   return { categories, groups, addons, products };
 }
 
-import { fetchCatalog, pushCatalog } from "@/lib/db";
+import {
+  fetchCatalog, pushCatalog,
+  createGroupRemote, updateGroupRemote, deleteGroupRemote,
+  createAddonRemote, updateAddonRemote, deleteAddonRemote,
+  createProductRemote, updateProductRemote,
+} from "@/lib/db";
 import { subscribeCatalog } from "@/lib/realtime";
 import { isSupabaseConfigured } from "@/lib/supabase";
 
@@ -198,12 +203,120 @@ function commit(cat: Catalog) {
   if (isSupabaseConfigured) void pushCatalog(cat); // espelha no Supabase (background)
 }
 
+/** Aplica a mudança no cache/local + notifica, SEM push completo do catálogo
+ *  (usado após uma mutação dedicada já ter persistido no Supabase). */
+function commitLocal(cat: Catalog) {
+  mutationEpoch++; // invalida qualquer hydrate/realtime em voo mais antigo
+  write(cat);
+  ensureChannel();
+  channel?.postMessage("changed");
+  listeners.forEach((l) => l());
+}
+
+type ActionResult = { ok: boolean; error?: string };
+
+/* CRUD manual de grupos/adicionais com PERSISTÊNCIA REAL e erro visível.
+ * Com Supabase: faz a mutação dedicada e SÓ aplica local no sucesso (não finge
+ * sucesso). Sem Supabase: usa o caminho local de sempre. */
+export async function createGroupAction(name: string): Promise<ActionResult & { group?: AddonGroup }> {
+  if (!isSupabaseConfigured) { return { ok: true, group: createGroup(name) }; }
+  const cat = read();
+  const g: AddonGroup = { id: uid("grp"), name, order: cat.groups.length, max: 5, required: false };
+  try {
+    await createGroupRemote(g);
+    cat.groups.push(g); commitLocal(cat);
+    return { ok: true, group: g };
+  } catch { return { ok: false, error: "Não foi possível criar o grupo. Tente novamente." }; }
+}
+export async function updateGroupAction(id: string, patch: { name?: string; max?: number; required?: boolean }): Promise<ActionResult> {
+  if (!isSupabaseConfigured) { updateGroup(id, patch); return { ok: true }; }
+  try {
+    await updateGroupRemote(id, patch);
+    const cat = read(); const i = cat.groups.findIndex((g) => g.id === id);
+    if (i >= 0) { cat.groups[i] = { ...cat.groups[i], ...patch }; commitLocal(cat); }
+    return { ok: true };
+  } catch { return { ok: false, error: "Não foi possível salvar o grupo. Tente novamente." }; }
+}
+export async function deleteGroupAction(id: string): Promise<ActionResult> {
+  if (!isSupabaseConfigured) { deleteGroup(id); return { ok: true }; }
+  try {
+    await deleteGroupRemote(id);
+    const cat = read();
+    cat.groups = cat.groups.filter((g) => g.id !== id);
+    cat.addons = cat.addons.filter((a) => a.groupId !== id);
+    cat.products.forEach((p) => (p.addonGroupIds = p.addonGroupIds.filter((gid) => gid !== id)));
+    commitLocal(cat);
+    return { ok: true };
+  } catch { return { ok: false, error: "Não foi possível excluir o grupo. Tente novamente." }; }
+}
+export async function createAddonAction(groupId: string, name: string, price: number): Promise<ActionResult> {
+  if (!isSupabaseConfigured) { createAddon(groupId, name, price); return { ok: true }; }
+  const cat = read();
+  const order = cat.addons.filter((a) => a.groupId === groupId).length;
+  const a: Addon = { id: uid("add"), groupId, name, price, available: true, order };
+  try {
+    await createAddonRemote(a);
+    cat.addons.push(a); commitLocal(cat);
+    return { ok: true };
+  } catch { return { ok: false, error: "Não foi possível salvar o adicional. Tente novamente." }; }
+}
+export async function updateAddonAction(id: string, patch: { name?: string; price?: number; available?: boolean }): Promise<ActionResult> {
+  if (!isSupabaseConfigured) { updateAddon(id, patch); return { ok: true }; }
+  try {
+    await updateAddonRemote(id, patch);
+    const cat = read(); const i = cat.addons.findIndex((a) => a.id === id);
+    if (i >= 0) { cat.addons[i] = { ...cat.addons[i], ...patch }; commitLocal(cat); }
+    return { ok: true };
+  } catch { return { ok: false, error: "Não foi possível salvar. Tente novamente." }; }
+}
+export async function deleteAddonAction(id: string): Promise<ActionResult> {
+  if (!isSupabaseConfigured) { deleteAddon(id); return { ok: true }; }
+  try {
+    await deleteAddonRemote(id);
+    const cat = read(); cat.addons = cat.addons.filter((a) => a.id !== id); commitLocal(cat);
+    return { ok: true };
+  } catch { return { ok: false, error: "Não foi possível excluir. Tente novamente." }; }
+}
+
+/* Produto: salvar de forma CONFIÁVEL (awaited, dedicado, sem push do catálogo
+ * inteiro → nunca apaga/sobrescreve os outros produtos do Supabase). Só aplica
+ * no cache local DEPOIS que o Supabase confirma. */
+export async function createProductAction(input: ProductInput): Promise<ActionResult> {
+  if (!isSupabaseConfigured) { createProduct(input); return { ok: true }; }
+  const cat = read();
+  const order = cat.products.filter((p) => p.categoryId === input.categoryId).length;
+  const product: CatalogProduct = { ...input, id: uid("prod"), order };
+  try {
+    await createProductRemote(product.id, product, order);
+    cat.products.push(product); commitLocal(cat);
+    return { ok: true };
+  } catch { return { ok: false, error: "Não foi possível salvar o produto. Tente novamente." }; }
+}
+export async function updateProductAction(id: string, input: ProductInput): Promise<ActionResult> {
+  if (!isSupabaseConfigured) { updateProduct(id, input); return { ok: true }; }
+  const cat = read();
+  const i = cat.products.findIndex((p) => p.id === id);
+  if (i < 0) return { ok: false, error: "Produto não encontrado." };
+  const order = cat.products[i].order;
+  const updated: CatalogProduct = { ...cat.products[i], ...input, id, order };
+  try {
+    await updateProductRemote(id, updated, order);
+    cat.products[i] = updated; commitLocal(cat);
+    return { ok: true };
+  } catch { return { ok: false, error: "Não foi possível salvar o produto. Tente novamente." }; }
+}
+
 // ---------- hidratação (Supabase → cache) ----------
 // No load, se o Supabase estiver configurado e tiver dados, ele vira a fonte
 // de leitura; senão mantém o cardápio local (fallback), sem quebrar nada.
+// Época de mutação: cada edição local confirmada incrementa este contador.
+// Um hydrate cujo fetch começou ANTES da mutação é descartado (não sobrescreve
+// a edição recém-salva). Resolve a race edição↔realtime/hydration.
+let mutationEpoch = 0;
 function hydrateCatalog() {
+  const epoch = mutationEpoch;
   void fetchCatalog().then((remote) => {
-    if (remote) {
+    if (remote && epoch === mutationEpoch) {
       cache = remote;
       try { localStorage.setItem(KEY, JSON.stringify(remote)); } catch { /* ignore */ }
       listeners.forEach((l) => l());

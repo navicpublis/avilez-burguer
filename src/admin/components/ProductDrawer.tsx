@@ -13,8 +13,8 @@ import {
   type AddonGroup,
   STATUS_LABEL,
   BADGE_LABEL,
-  createProduct,
-  updateProduct,
+  createProductAction,
+  updateProductAction,
 } from "@/services/catalog-store";
 
 const STATUSES: ProductStatus[] = ["disponivel", "indisponivel", "oculto", "em_falta"];
@@ -43,9 +43,13 @@ export function ProductDrawer({
   const open = product !== null;
   const editing = product && product !== "new" ? product : null;
   const [form, setForm] = useState<ProductInput>(empty(categories[0]?.id ?? ""));
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
+    setError(null);
     if (product === "new") setForm(empty(categories[0]?.id ?? ""));
     else if (product) {
       const { id: _id, order: _order, ...rest } = product;
@@ -67,21 +71,36 @@ export function ProductDrawer({
   }
   async function onFile(file: File | undefined) {
     if (!file) return;
+    setError(null);
     // Com Supabase: sobe pro Storage e salva a URL pública (nada de Base64 no banco).
     if (isSupabaseConfigured) {
-      const url = await uploadImage(file, "produtos");
-      if (url) { set("image", url); return; }
+      setUploading(true);
+      try {
+        const url = await uploadImage(file, "produtos");
+        if (url) { set("image", url); }         // só troca a imagem quando o upload conclui
+        else setError("Não foi possível enviar a imagem. Tente novamente.");
+      } catch {
+        setError("Não foi possível enviar a imagem. Tente novamente.");
+      } finally {
+        setUploading(false);
+      }
+      return;
     }
     // Fallback (sem backend): preview local via dataURL.
     const reader = new FileReader();
     reader.onload = () => set("image", String(reader.result));
     reader.readAsDataURL(file);
   }
-  function save() {
-    if (!form.name.trim()) return;
-    if (editing) updateProduct(editing.id, form);
-    else createProduct(form);
-    onClose();
+  async function save() {
+    if (saving || uploading || !form.name.trim()) return;
+    setError(null);
+    setSaving(true);
+    const r = editing
+      ? await updateProductAction(editing.id, form)
+      : await createProductAction(form);
+    setSaving(false);
+    if (r.ok) onClose();                         // só fecha DEPOIS que o Supabase confirma
+    else setError(r.error ?? "Não foi possível salvar o produto.");
   }
 
   return (
@@ -109,8 +128,8 @@ export function ProductDrawer({
               </div>
               <div className="flex flex-wrap gap-2">
                 <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => onFile(e.target.files?.[0])} />
-                <button type="button" onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-bold hover:border-primary">
-                  <Upload className="size-4" /> {form.image ? "Trocar" : "Enviar"}
+                <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading || saving} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-bold hover:border-primary disabled:opacity-50">
+                  <Upload className="size-4" /> {uploading ? "Enviando…" : form.image ? "Trocar" : "Enviar"}
                 </button>
                 {form.image && (
                   <button type="button" onClick={() => set("image", null)} className="rounded-lg border border-border px-3 py-2 text-sm font-bold text-red-400 hover:border-red-400">
@@ -192,8 +211,9 @@ export function ProductDrawer({
         </div>
 
         <footer className="border-t border-border p-4">
-          <button type="button" onClick={save} disabled={!form.name.trim()} className="h-12 w-full rounded-lg bg-primary font-extrabold text-primary-foreground transition-colors hover:bg-brand-yellow-soft disabled:cursor-not-allowed disabled:opacity-50">
-            {editing ? "Salvar alterações" : "Criar produto"}
+          {error && <p className="mb-3 text-sm text-red-400">{error}</p>}
+          <button type="button" onClick={save} disabled={!form.name.trim() || saving || uploading} className="h-12 w-full rounded-lg bg-primary font-extrabold text-primary-foreground transition-colors hover:bg-brand-yellow-soft disabled:cursor-not-allowed disabled:opacity-50">
+            {saving ? "Salvando…" : editing ? "Salvar alterações" : "Criar produto"}
           </button>
         </footer>
       </aside>

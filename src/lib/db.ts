@@ -485,3 +485,86 @@ export async function pushNotes(list: Note[]): Promise<void> {
     await pruneNotIn(s, "notes", list.map((n) => n.id));
   } catch { /* mantém local */ }
 }
+
+/* ─────────── CRUD manual de grupos/adicionais (Admin) — dedicado ───────────
+ * Mutações focadas (uma de cada vez), com erro propagado para a UI mostrar.
+ * A RLS de admin já permite escrever em addons/addon_groups; as FKs cuidam da
+ * integridade (addons.group_id e product_addon_groups.group_id = ON DELETE
+ * CASCADE; order_item_addons.addon_id = ON DELETE SET NULL → histórico intacto). */
+export async function createGroupRemote(g: { id: string; name: string; max: number; required: boolean; order: number }): Promise<void> {
+  const sb = requireSupabase();
+  const { error } = await sb.from("addon_groups").insert({ id: g.id, name: g.name, max_choices: g.max, required: g.required, sort_order: g.order });
+  if (error) throw new Error(error.message);
+}
+export async function updateGroupRemote(id: string, patch: { name?: string; max?: number; required?: boolean }): Promise<void> {
+  const sb = requireSupabase();
+  const row: Record<string, unknown> = {};
+  if (patch.name !== undefined) row.name = patch.name;
+  if (patch.max !== undefined) row.max_choices = patch.max;
+  if (patch.required !== undefined) row.required = patch.required;
+  const { error } = await sb.from("addon_groups").update(row).eq("id", id);
+  if (error) throw new Error(error.message);
+}
+export async function deleteGroupRemote(id: string): Promise<void> {
+  const sb = requireSupabase();
+  const { error } = await sb.from("addon_groups").delete().eq("id", id); // cascata: addons + vínculos
+  if (error) throw new Error(error.message);
+}
+export async function createAddonRemote(a: { id: string; groupId: string; name: string; price: number; available: boolean; order: number }): Promise<void> {
+  const sb = requireSupabase();
+  const { error } = await sb.from("addons").insert({ id: a.id, group_id: a.groupId, name: a.name, price: a.price, available: a.available, sort_order: a.order });
+  if (error) throw new Error(error.message);
+}
+export async function updateAddonRemote(id: string, patch: { name?: string; price?: number; available?: boolean }): Promise<void> {
+  const sb = requireSupabase();
+  const row: Record<string, unknown> = {};
+  if (patch.name !== undefined) row.name = patch.name;
+  if (patch.price !== undefined) row.price = patch.price;
+  if (patch.available !== undefined) row.available = patch.available;
+  const { error } = await sb.from("addons").update(row).eq("id", id);
+  if (error) throw new Error(error.message);
+}
+export async function deleteAddonRemote(id: string): Promise<void> {
+  const sb = requireSupabase();
+  const { error } = await sb.from("addons").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+/* ─────────── Produto (Admin): mutação DEDICADA de UM produto ───────────
+ * Atualiza/insere SÓ a linha daquele produto + os vínculos DELE — NUNCA o
+ * catálogo inteiro e NUNCA prune. Assim salvar um produto não pode, em
+ * hipótese alguma, apagar ou sobrescrever os outros produtos do Supabase.
+ * Lança em erro (nada de falha silenciosa). */
+function productRow(id: string, p: CatalogProduct, order: number): Record<string, unknown> {
+  const flags = { featured: false, best_seller: false, new_product: false, promo: false, limited: false };
+  p.badges.forEach((b) => { flags[BADGE_COLS[b]] = true; });
+  return {
+    id, category_id: p.categoryId || null, name: p.name, slug: id,
+    short_description: p.shortDesc, description: p.fullDesc, price: p.price,
+    promotional_price: p.promoPrice, image_url: p.image, status: p.status,
+    active: true, available: p.status === "disponivel", ...flags,
+    preparation_time: p.prepTime, weight: p.weight, ingredients: p.ingredients, sort_order: order,
+  };
+}
+async function syncProductGroups(id: string, groupIds: string[]): Promise<void> {
+  const s = requireSupabase();
+  // recria SÓ os vínculos deste produto (escopo product_id = id)
+  const del = await s.from("product_addon_groups").delete().eq("product_id", id);
+  if (del.error) throw new Error(del.error.message);
+  if (groupIds.length) {
+    const ins = await s.from("product_addon_groups").insert(groupIds.map((g) => ({ product_id: id, group_id: g })));
+    if (ins.error) throw new Error(ins.error.message);
+  }
+}
+export async function updateProductRemote(id: string, p: CatalogProduct, order: number): Promise<void> {
+  const s = requireSupabase();
+  const { error } = await s.from("products").update(productRow(id, p, order)).eq("id", id);
+  if (error) throw new Error(error.message);
+  await syncProductGroups(id, p.addonGroupIds);
+}
+export async function createProductRemote(id: string, p: CatalogProduct, order: number): Promise<void> {
+  const s = requireSupabase();
+  const { error } = await s.from("products").insert(productRow(id, p, order));
+  if (error) throw new Error(error.message);
+  await syncProductGroups(id, p.addonGroupIds);
+}
