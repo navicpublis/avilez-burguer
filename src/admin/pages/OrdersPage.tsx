@@ -159,8 +159,11 @@ function OrderCard({
         </span>
         <span className="inline-flex items-start gap-1.5">
           <MapPin className="mt-0.5 size-3.5 shrink-0" />
-          <span className="truncate">
-            {c.street}, {c.number} · <span className="font-semibold text-foreground">{c.neighborhood}</span>
+          <span>
+            {[c.street, c.number].filter(Boolean).join(", ")}
+            {c.complement ? ` · ${c.complement}` : ""}
+            {" · "}<span className="font-semibold text-foreground">{c.neighborhood}</span>
+            {c.reference ? <span className="block text-muted-foreground">Ref.: {c.reference}</span> : null}
           </span>
         </span>
       </div>

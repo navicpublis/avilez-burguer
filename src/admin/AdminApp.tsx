@@ -38,9 +38,17 @@ export function AdminApp() {
     }
   });
   const [checking, setChecking] = useState<boolean>(isSupabaseConfigured);
-  const [active, setActive] = useState("dashboard");
+  const [active, setActive] = useState<string>(() => {
+    // lembra a última seção aberta (persiste após F5)
+    try { return localStorage.getItem("avilez_admin_tab") || "dashboard"; } catch { return "dashboard"; }
+  });
   const [drawer, setDrawer] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+
+  // grava a seção ativa para sobreviver ao F5
+  useEffect(() => {
+    try { localStorage.setItem("avilez_admin_tab", active); } catch { /* ignore */ }
+  }, [active]);
 
   // Recuperação de sessão + escuta de mudanças de autenticação (Supabase).
   useEffect(() => {

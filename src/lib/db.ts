@@ -346,23 +346,38 @@ export async function fetchAdminOrders(): Promise<ManagedOrder[] | null> {
     const { data: orders, error } = await s.from("orders").select("*").order("created_at", { ascending: false });
     if (error || !orders) return null;
     const ids = orders.map((o: any) => o.id);
-    const [items, hist] = await Promise.all([
+    // endereço completo: já existe em customer_addresses (via orders.address_id).
+    // O Admin só não estava LENDO — buscamos aqui e usamos address_snapshot como
+    // fallback. Não altera criação de pedido, WhatsApp nem schema.
+    const addrIds = orders.map((o: any) => o.address_id).filter((x: any): x is string => !!x);
+    const [items, hist, addrs] = await Promise.all([
       ids.length ? s.from("order_items").select("*").in("order_id", ids) : Promise.resolve({ data: [] as any[] }),
       ids.length ? s.from("order_status_history").select("*").in("order_id", ids) : Promise.resolve({ data: [] as any[] }),
+      addrIds.length ? s.from("customer_addresses").select("*").in("id", addrIds) : Promise.resolve({ data: [] as any[] }),
     ]);
+    const addrById = new Map<string, any>();
+    (addrs.data ?? []).forEach((a: any) => addrById.set(a.id, a));
     const itemsByOrder = new Map<string, any[]>();
     (items.data ?? []).forEach((it: any) => itemsByOrder.set(it.order_id, [...(itemsByOrder.get(it.order_id) ?? []), it]));
     const histByOrder = new Map<string, any[]>();
     (hist.data ?? []).forEach((h: any) => histByOrder.set(h.order_id, [...(histByOrder.get(h.order_id) ?? []), h]));
 
-    return orders.map((o: any): ManagedOrder => ({
+    return orders.map((o: any): ManagedOrder => {
+      const a = o.address_id ? addrById.get(o.address_id) : null;
+      // fallback: address_snapshot é "Rua, Número" (gravado pelo create_order)
+      const snap = String(o.address_snapshot ?? "");
+      const snapNumIdx = snap.lastIndexOf(",");
+      const snapStreet = snapNumIdx >= 0 ? snap.slice(0, snapNumIdx).trim() : snap.trim();
+      const snapNumber = snapNumIdx >= 0 ? snap.slice(snapNumIdx + 1).trim() : "";
+      return {
       id: o.order_number ?? o.id,
       createdAt: o.created_at,
       status: o.status as OrderStatus,
       customer: {
         name: o.customer_name ?? "", phone: o.customer_phone ?? "",
-        street: "", number: "", complement: "", neighborhood: o.delivery_zone_name ?? "",
-        reference: "", cep: "",
+        street: a?.street || snapStreet, number: a?.number || snapNumber,
+        complement: a?.complement ?? "", neighborhood: o.delivery_zone_name ?? "",
+        reference: a?.reference ?? "", cep: a?.cep ?? "",
       },
       payment: o.payment_method, changeFor: o.change_for != null ? String(o.change_for) : null,
       items: (itemsByOrder.get(o.id) ?? []).map((it: any) => ({
@@ -374,12 +389,13 @@ export async function fetchAdminOrders(): Promise<ManagedOrder[] | null> {
       notes: o.customer_notes || undefined,
       trackingUrl: "",
       history: (histByOrder.get(o.id) ?? [])
-        .sort((a: any, b: any) => a.created_at.localeCompare(b.created_at))
+        .sort((a2: any, b2: any) => a2.created_at.localeCompare(b2.created_at))
         .map((h: any) => ({ status: h.new_status as OrderStatus, at: h.created_at })),
       cancelReason: o.cancellation_reason ?? undefined,
       publicToken: o.public_token,
       dbId: o.id,
-    } as ManagedOrder));
+      } as ManagedOrder;
+    });
   } catch { return null; }
 }
 
