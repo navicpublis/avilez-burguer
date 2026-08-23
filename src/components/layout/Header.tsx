@@ -8,7 +8,7 @@ import { MobileMenu } from "@/components/layout/MobileMenu";
 import { useScrolled } from "@/hooks";
 import { siteConfig } from "@/services/site-config";
 import { useShop } from "@/store/shop-context";
-import { useSettings } from "@/hooks";
+import { useSettings, useMenuSections } from "@/hooks";
 
 /**
  * Tema do header quando está no TOPO (transparente):
@@ -37,6 +37,7 @@ export function Header({ topTheme = "dark" }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const { openCategories } = useShop();
   const { storeOpen } = useSettings();
+  const sections = useMenuSections();
 
   // Loja fechada: header entra no FLUXO (sticky) e sempre sólido, para a faixa
   // "LOJA FECHADA" ficar logo abaixo dele, sem sobreposição. Loja aberta:
@@ -69,6 +70,14 @@ export function Header({ topTheme = "dark" }: HeaderProps) {
               <a
                 key={item.href}
                 href={item.href}
+                onClick={(e) => {
+                  // "Cardápio" aponta para a 1ª categoria real (dinâmica), não uma âncora fixa
+                  if (item.href === "#hamburgueres") {
+                    const firstId = sections[0]?.category.id;
+                    const el = firstId ? document.getElementById(firstId) : null;
+                    if (el) { e.preventDefault(); el.scrollIntoView({ behavior: "smooth", block: "start" }); }
+                  }
+                }}
                 className={cn(
                   "rounded-md px-3 py-2 text-sm font-semibold transition-colors duration-hover ease-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   navLinkTop({ theme: onLightTop ? "light" : "dark" })

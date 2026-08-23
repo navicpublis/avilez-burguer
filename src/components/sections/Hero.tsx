@@ -1,17 +1,20 @@
 import { Container } from "@/components/ui";
 import burgerPhoto from "@/assets/burger.webp";
-import { useSettings } from "@/hooks";
+import { useSettings, useMenuSections } from "@/hooks";
 import { cn } from "@/lib/utils";
 
 /**
  * Hero — primeira tela do site (campo amarelo #FDBE0A + tudo em preto).
  * Estilo campanha, mobile first: título gigante + 1 ação + foto.
- * "Ver Cardápio" rola suave até a seção do cardápio.
+ * "Ver Cardápio" rola suave até a PRIMEIRA categoria visível do cardápio.
  */
 export function Hero() {
   const { landing, storeOpen } = useSettings();
+  const sections = useMenuSections();
   const goToMenu = () => {
-    const el = document.getElementById("hamburgueres");
+    // primeira categoria visível (dinâmica); fallback para "inicio" se não houver
+    const firstId = sections[0]?.category.id;
+    const el = firstId ? document.getElementById(firstId) : null;
     if (!el) return;
     el.scrollIntoView({ behavior: "smooth", block: "start" });
   };

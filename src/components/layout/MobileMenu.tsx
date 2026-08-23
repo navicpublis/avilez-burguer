@@ -11,6 +11,7 @@ import {
 import { Logo } from "@/components/layout/Logo";
 import { siteConfig } from "@/services/site-config";
 import { useShop } from "@/store/shop-context";
+import { useMenuSections } from "@/hooks";
 
 interface MobileMenuProps {
   open: boolean;
@@ -32,6 +33,7 @@ export function MobileMenu({
   triggerClassName,
 }: MobileMenuProps) {
   const { openCategories } = useShop();
+  const sections = useMenuSections();
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetTrigger asChild>
@@ -56,6 +58,13 @@ export function MobileMenu({
               <SheetClose asChild key={item.href}>
                 <a
                   href={item.href}
+                  onClick={(e) => {
+                    if (item.href === "#hamburgueres") {
+                      const firstId = sections[0]?.category.id;
+                      const el = firstId ? document.getElementById(firstId) : null;
+                      if (el) { e.preventDefault(); setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 260); }
+                    }
+                  }}
                   className="rounded-lg px-4 py-3.5 font-display text-lg font-semibold text-foreground transition-colors duration-hover ease-brand hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   {item.label}

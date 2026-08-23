@@ -43,6 +43,9 @@ function badgeLabel(cp: CatalogProduct): string | undefined {
 
 function toProduct(cp: CatalogProduct): Product {
   const hasPromo = cp.promoPrice != null && cp.promoPrice > 0 && cp.promoPrice < cp.price;
+  // Regra global: qualquer produto tem adicionais se existir algum adicional
+  // ativo no cardápio (grupos globais), independente de vínculo manual.
+  const anyAddonActive = getCatalog().addons.some((a) => a.available);
   return {
     id: cp.id,
     cat: cp.categoryId,
@@ -54,7 +57,7 @@ function toProduct(cp: CatalogProduct): Product {
     image: cp.image ?? undefined,
     badge: badgeLabel(cp),
     available: cp.status === "disponivel",
-    hasAddons: (cp.addonGroupIds?.length ?? 0) > 0,
+    hasAddons: anyAddonActive,
   };
 }
 
@@ -78,15 +81,27 @@ export function findAddon(id: string): Addon | undefined {
   return a ? { id: a.id, name: a.name, price: a.price } : undefined;
 }
 
-/** Adicionais disponíveis de um produto (pelos grupos vinculados a ele). */
+/**
+ * Adicionais disponíveis de um produto.
+ *
+ * REGRA GLOBAL: todo produto pode usar TODOS os adicionais ativos do cardápio
+ * (grupos globais), sem precisar de vínculo manual produto→grupo. Basta o
+ * adicional estar disponível (available). Isso é só leitura — não cria nenhum
+ * registro em product_addon_groups. Um adicional desativado não aparece.
+ */
 export function productAddons(productId: string): Addon[] {
   const cat = getCatalog();
   const cp = cat.products.find((p) => p.id === productId);
   if (!cp) return [];
-  const groups = new Set(cp.addonGroupIds);
+  // ordena por grupo (order do grupo) e depois pela ordem do adicional,
+  // para manter "Extras", "Queijos", etc. agrupados visualmente.
+  const groupOrder = new Map(cat.groups.map((g) => [g.id, g.order]));
   return cat.addons
-    .filter((a) => groups.has(a.groupId) && a.available)
-    .sort((a, b) => a.order - b.order)
+    .filter((a) => a.available)
+    .sort((a, b) => {
+      const go = (groupOrder.get(a.groupId) ?? 999) - (groupOrder.get(b.groupId) ?? 999);
+      return go !== 0 ? go : a.order - b.order;
+    })
     .map((a) => ({ id: a.id, name: a.name, price: a.price }));
 }
 
