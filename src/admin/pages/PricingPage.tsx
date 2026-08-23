@@ -9,6 +9,7 @@ import {
   type CostItem, type PricingSettings, type PricingUnitKind,
   type PricingProfile, type PricingResult, type PricingStatus,
   UNIT_KIND_LABEL, STATUS_LABEL, computePricing, costOfItem, classifyStatus, breakEven,
+  sanitizeMoneyInput, moneyToNumber, numberToMoneyInput,
 } from "@/services/pricing";
 import {
   buildAnalysisInput, localAnalysis, aiAnalysis, aiEnabled,
@@ -339,13 +340,13 @@ function PricingEditor({
                         <input value={it.unitLabel} onChange={(e) => patchItem(it.id, { unitLabel: e.target.value })} placeholder="g" className="mt-1 h-9 w-full rounded-md border border-border bg-card px-2 text-sm focus-visible:border-primary focus-visible:outline-none" />
                       </label>
                       <label className="text-xs text-muted-foreground">Qtd. compra
-                        <input value={it.purchaseQty} onChange={(e) => patchItem(it.id, { purchaseQty: Number(e.target.value.replace(",", ".")) || 0 })} inputMode="decimal" className="mt-1 h-9 w-full rounded-md border border-border bg-card px-2 text-sm focus-visible:border-primary focus-visible:outline-none" />
+                        <MoneyInput value={it.purchaseQty} onChangeNumber={(n) => patchItem(it.id, { purchaseQty: n })} ariaLabel="Quantidade da compra" className="mt-1 h-9 w-full rounded-md border border-border bg-card px-2 text-sm focus-visible:border-primary focus-visible:outline-none" />
                       </label>
                       <label className="text-xs text-muted-foreground">Preço compra (R$)
-                        <input value={it.purchasePrice} onChange={(e) => patchItem(it.id, { purchasePrice: Number(e.target.value.replace(",", ".")) || 0 })} inputMode="decimal" className="mt-1 h-9 w-full rounded-md border border-border bg-card px-2 text-sm focus-visible:border-primary focus-visible:outline-none" />
+                        <MoneyInput value={it.purchasePrice} onChangeNumber={(n) => patchItem(it.id, { purchasePrice: n })} ariaLabel="Preço da compra" className="mt-1 h-9 w-full rounded-md border border-border bg-card px-2 text-sm focus-visible:border-primary focus-visible:outline-none" />
                       </label>
                       <label className="text-xs text-muted-foreground">Qtd. usada
-                        <input value={it.usedQty} onChange={(e) => patchItem(it.id, { usedQty: Number(e.target.value.replace(",", ".")) || 0 })} inputMode="decimal" className="mt-1 h-9 w-full rounded-md border border-border bg-card px-2 text-sm focus-visible:border-primary focus-visible:outline-none" />
+                        <MoneyInput value={it.usedQty} onChangeNumber={(n) => patchItem(it.id, { usedQty: n })} ariaLabel="Quantidade usada" className="mt-1 h-9 w-full rounded-md border border-border bg-card px-2 text-sm focus-visible:border-primary focus-visible:outline-none" />
                       </label>
                       <div className="flex flex-col justify-end text-xs text-muted-foreground">
                         Custo do item
@@ -359,13 +360,13 @@ function PricingEditor({
 
               <div className="mt-5 grid grid-cols-3 gap-2">
                 <label className="text-xs text-muted-foreground">Preço de venda (R$)
-                  <input value={sale} onChange={(e) => setSale(e.target.value)} inputMode="decimal" className="mt-1 h-10 w-full rounded-md border border-border bg-secondary px-2.5 text-sm focus-visible:border-primary focus-visible:outline-none" />
+                  <input value={sale} onChange={(e) => setSale(sanitizeMoneyInput(e.target.value))} onBlur={() => setSale(numberToMoneyInput(moneyToNumber(sale)))} type="text" inputMode="decimal" className="mt-1 h-10 w-full rounded-md border border-border bg-secondary px-2.5 text-sm focus-visible:border-primary focus-visible:outline-none" />
                 </label>
                 <label className="text-xs text-muted-foreground">Margem mín. (%)
-                  <input value={minMargin} onChange={(e) => setMinMargin(e.target.value)} inputMode="decimal" className="mt-1 h-10 w-full rounded-md border border-border bg-secondary px-2.5 text-sm focus-visible:border-primary focus-visible:outline-none" />
+                  <input value={minMargin} onChange={(e) => setMinMargin(sanitizeMoneyInput(e.target.value))} type="text" inputMode="decimal" className="mt-1 h-10 w-full rounded-md border border-border bg-secondary px-2.5 text-sm focus-visible:border-primary focus-visible:outline-none" />
                 </label>
                 <label className="text-xs text-muted-foreground">Margem desejada (%)
-                  <input value={targetMargin} onChange={(e) => setTargetMargin(e.target.value)} inputMode="decimal" className="mt-1 h-10 w-full rounded-md border border-border bg-secondary px-2.5 text-sm focus-visible:border-primary focus-visible:outline-none" />
+                  <input value={targetMargin} onChange={(e) => setTargetMargin(sanitizeMoneyInput(e.target.value))} type="text" inputMode="decimal" className="mt-1 h-10 w-full rounded-md border border-border bg-secondary px-2.5 text-sm focus-visible:border-primary focus-visible:outline-none" />
                 </label>
               </div>
               <p className="mt-1 text-[0.7rem] text-muted-foreground">O preço de venda aqui é só para cálculo — não altera o preço do cardápio.</p>
@@ -386,7 +387,7 @@ function PricingEditor({
 
               <div className="mt-5 rounded-xl border border-primary/30 bg-primary/5 p-3">
                 <div className="mb-2 flex items-center gap-1.5 text-sm font-bold"><TrendingUp className="size-4 text-primary" /> Simular preço</div>
-                <input value={sim} onChange={(e) => setSim(e.target.value)} inputMode="decimal" placeholder="Digite um preço para simular..." className="h-10 w-full rounded-md border border-border bg-card px-2.5 text-sm focus-visible:border-primary focus-visible:outline-none" />
+                <input value={sim} onChange={(e) => setSim(sanitizeMoneyInput(e.target.value))} type="text" inputMode="decimal" placeholder="Digite um preço para simular..." className="h-10 w-full rounded-md border border-border bg-card px-2.5 text-sm focus-visible:border-primary focus-visible:outline-none" />
                 {simResult && (
                   <div className="mt-3 grid grid-cols-4 gap-2 text-center">
                     <SimCell label="Lucro" value={formatCurrency(simResult.profit)} tone={simResult.profit < 0 ? "bad" : "good"} />
@@ -463,10 +464,10 @@ function SettingsDrawer({ settings, onClose, onSaved }: { settings: PricingSetti
           <h3 className="font-display text-lg font-bold">Margens padrão</h3>
           <p className="mt-1 text-sm text-muted-foreground">Usadas quando o produto não define margem própria.</p>
           <label className="mt-4 block text-xs text-muted-foreground">Margem mínima (%)
-            <input value={min} onChange={(e) => setMin(e.target.value)} inputMode="decimal" className="mt-1 h-10 w-full rounded-md border border-border bg-secondary px-2.5 text-sm focus-visible:border-primary focus-visible:outline-none" />
+            <input value={min} onChange={(e) => setMin(sanitizeMoneyInput(e.target.value))} type="text" inputMode="decimal" className="mt-1 h-10 w-full rounded-md border border-border bg-secondary px-2.5 text-sm focus-visible:border-primary focus-visible:outline-none" />
           </label>
           <label className="mt-3 block text-xs text-muted-foreground">Margem desejada (%)
-            <input value={target} onChange={(e) => setTarget(e.target.value)} inputMode="decimal" className="mt-1 h-10 w-full rounded-md border border-border bg-secondary px-2.5 text-sm focus-visible:border-primary focus-visible:outline-none" />
+            <input value={target} onChange={(e) => setTarget(sanitizeMoneyInput(e.target.value))} type="text" inputMode="decimal" className="mt-1 h-10 w-full rounded-md border border-border bg-secondary px-2.5 text-sm focus-visible:border-primary focus-visible:outline-none" />
           </label>
           {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
           <div className="mt-5 flex gap-2">
@@ -538,5 +539,53 @@ function AnalysisPanel({
         {aiLines ? "Interpretação por IA sobre os números calculados pelo sistema." : "Análise do sistema (sem IA)."} Somente leitura — não altera preços nem o cardápio.
       </p>
     </div>
+  );
+}
+
+/**
+ * MoneyInput — input de dinheiro/decimal em padrão BR.
+ *
+ * Controla a DIGITAÇÃO como string (aceita "3,80" e "3.80", não apaga centavos,
+ * máx. 2 casas), converte para número só ao propagar (onChange) e ao sair do
+ * campo (onBlur) formata como "3,80". Se o pai mudar o valor por fora (ex.:
+ * carregar perfil), o texto reflete. Não usa type="number" (evita o locale do
+ * navegador que causava o bug). Não altera nenhum cálculo — só a camada de UI.
+ */
+function MoneyInput({
+  value, onChangeNumber, className, placeholder, ariaLabel,
+}: {
+  value: number;
+  onChangeNumber: (n: number) => void;
+  className?: string;
+  placeholder?: string;
+  ariaLabel?: string;
+}) {
+  const [text, setText] = useState<string>(() => numberToMoneyInput(value));
+  const [focused, setFocused] = useState(false);
+
+  // quando o valor do pai muda e o campo NÃO está em edição, reflete no texto
+  useEffect(() => {
+    if (!focused) setText(numberToMoneyInput(value));
+  }, [value, focused]);
+
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={text}
+      placeholder={placeholder}
+      aria-label={ariaLabel}
+      onFocus={() => setFocused(true)}
+      onChange={(e) => {
+        const clean = sanitizeMoneyInput(e.target.value);
+        setText(clean);                    // mostra exatamente o que a pessoa digita
+        onChangeNumber(moneyToNumber(clean)); // propaga o número (nunca NaN)
+      }}
+      onBlur={() => {
+        setFocused(false);
+        setText(numberToMoneyInput(moneyToNumber(text))); // formata "3,80" ao sair
+      }}
+      className={className}
+    />
   );
 }

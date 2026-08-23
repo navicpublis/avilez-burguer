@@ -52,6 +52,42 @@ export interface PricingSettings {
   defaultTargetMargin: number; // %
 }
 
+/**
+ * Dinheiro/decimais em padrão BR, para inputs controlados por STRING.
+ * A digitação é tratada como texto e só normalizada na hora de calcular/salvar.
+ */
+
+/** Sanitiza a digitação: só dígitos + 1 separador (vírgula OU ponto) + máx 2 casas.
+ *  Mantém a string "em progresso" (ex.: "3,", "3,8", "3,80") sem apagar centavos. */
+export function sanitizeMoneyInput(raw: string): string {
+  let s = (raw ?? "").replace(/[^\d.,]/g, ""); // remove tudo que não é dígito/.,
+  // unifica: o primeiro separador (vírgula ou ponto) é o decimal; os demais somem
+  const firstSep = s.search(/[.,]/);
+  if (firstSep >= 0) {
+    const intPart = s.slice(0, firstSep).replace(/[.,]/g, "");
+    let decPart = s.slice(firstSep + 1).replace(/[.,]/g, "");
+    decPart = decPart.slice(0, 2); // no máximo 2 casas decimais
+    // preserva o separador que o usuário digitou (vírgula por padrão no BR)
+    const sep = s[firstSep] === "." ? "." : ",";
+    s = intPart + sep + decPart;
+  }
+  return s;
+}
+
+/** Converte a string BR ("3,80" ou "3.80") para número. Nunca NaN. */
+export function moneyToNumber(s: string): number {
+  if (typeof s !== "string") return Number(s) || 0;
+  const n = Number(s.replace(/\./g, ".").replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Número → string BR para exibir no input (ex.: 3.8 → "3,80"; 0 → ""). */
+export function numberToMoneyInput(n: number | null | undefined, withCents = true): string {
+  const v = Number(n);
+  if (!Number.isFinite(v) || v === 0) return "";
+  return withCents ? v.toFixed(2).replace(".", ",") : String(v).replace(".", ",");
+}
+
 /** Custo de um item de custo isolado. Robusto a zero/negativos. */
 export function costOfItem(it: CostItem): number {
   const pq = Number(it.purchaseQty) || 0;
