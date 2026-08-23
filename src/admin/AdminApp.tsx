@@ -14,6 +14,7 @@ import { CouponsPage } from "./pages/CouponsPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { NotesPage } from "./pages/NotesPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { PricingPage } from "./pages/PricingPage";
 import { initStockAutoConsume } from "@/services/stock-store";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { isActiveAdmin, signOutAdmin, onAuthChange } from "@/lib/auth";
@@ -154,6 +155,7 @@ export function AdminApp() {
         {active === "cupons" && <CouponsPage />}
         {active === "relatorios" && <ReportsPage />}
         {active === "anotacoes" && <NotesPage />}
+        {active === "precificacao" && <PricingPage />}
         {active === "configuracoes" && <SettingsPage />}
       </div>
 

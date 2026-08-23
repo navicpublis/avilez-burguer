@@ -1,7 +1,4 @@
-import {
-  LayoutGrid, Receipt, Beef, Tags, Package, Users, Star, Ticket,
-  BarChart3, Settings, StickyNote, type LucideIcon,
-} from "lucide-react";
+import { LayoutGrid, Receipt, Beef, Tags, Package, Users, Star, Ticket, BarChart3, Settings, StickyNote, type LucideIcon, Calculator } from "lucide-react";
 
 /** Item de navegação da sidebar. */
 export interface NavItem {
@@ -20,6 +17,7 @@ export const NAV: NavItem[] = [
   { key: "avaliacoes", label: "Avaliações", icon: Star },
   { key: "cupons", label: "Cupons", icon: Ticket },
   { key: "relatorios", label: "Relatórios", icon: BarChart3 },
+  { key: "precificacao", label: "Precificação", icon: Calculator },
   { key: "anotacoes", label: "Anotações", icon: StickyNote },
   { key: "configuracoes", label: "Configurações", icon: Settings },
 ];
