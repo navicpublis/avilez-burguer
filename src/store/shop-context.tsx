@@ -4,6 +4,7 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -76,7 +77,17 @@ function cartReducer(state: CartItem[], action: CartAction): CartItem[] {
 function loadCart(): CartItem[] {
   try {
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-    return Array.isArray(raw) ? raw : [];
+    if (!Array.isArray(raw)) return [];
+    // Sanitiza item a item: ignora só os inválidos (dados antigos/incompatíveis),
+    // sem descartar o carrinho inteiro nem deixar a app quebrar.
+    return raw
+      .filter((it) => it && typeof it === "object" && typeof it.id === "string" && it.id)
+      .map((it) => ({
+        id: String(it.id),
+        qty: Number.isFinite(Number(it.qty)) && Number(it.qty) > 0 ? Math.floor(Number(it.qty)) : 1,
+        addons: Array.isArray(it.addons) ? it.addons.filter((a: unknown) => typeof a === "string") : [],
+        obs: typeof it.obs === "string" ? it.obs : "",
+      }));
   } catch {
     return [];
   }
@@ -133,6 +144,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   const [productId, setProductId] = useState<string | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const openingCheckoutRef = useRef(false); // trava anti clique-duplo na transição carrinho→checkout
   const [customer, setCustomer] = useState<CustomerData | null>(() => {
     try {
       const raw = localStorage.getItem("avilez_customer");
@@ -213,8 +225,21 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       closeCart: () => setCartOpen(false),
       checkoutOpen,
       openCheckout: () => {
+        // Transição segura carrinho → checkout (corrige bug mobile).
+        // 1) trava contra clique duplo; 2) fecha o carrinho; 3) espera o
+        // fechamento/render acontecer (duplo requestAnimationFrame, estável em
+        // Safari/iPhone e Chrome Android); 4) só então abre o checkout — assim o
+        // toque que fechou o carrinho não é lido como "clique fora" do checkout.
+        if (openingCheckoutRef.current) return;
+        openingCheckoutRef.current = true;
         setCartOpen(false);
-        setCheckoutOpen(true);
+        const raf = typeof requestAnimationFrame === "function"
+          ? requestAnimationFrame
+          : (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16);
+        raf(() => raf(() => {
+          setCheckoutOpen(true);
+          openingCheckoutRef.current = false;
+        }));
       },
       closeCheckout: () => setCheckoutOpen(false),
       customer,

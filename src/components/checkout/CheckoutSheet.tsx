@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Check, ChevronLeft, MessageCircle, Loader2 } from "lucide-react";
 
 import {
@@ -74,6 +74,7 @@ export function CheckoutSheet() {
   const { storeOpen } = useSettings();
 
   const [step, setStep] = useState(1);
+  const wasOpenRef = useRef(false); // detecta a abertura real (fechado→aberto) p/ resetar só então
   const [form, setForm] = useState<CustomerData>(customer ?? EMPTY);
   const [errors, setErrors] = useState<Errors>({});
   const [payment, setPayment] = useState<PaymentMethod>("PIX");
@@ -87,7 +88,12 @@ export function CheckoutSheet() {
 
   // ao abrir: passo 1, recarrega dados salvos e tenta casar o bairro salvo
   useEffect(() => {
-    if (!checkoutOpen) return;
+    // Reseta o formulário SOMENTE numa abertura real do checkout (transição
+    // fechado→aberto). Não reseta quando muda customer/coupon/subtotal/total —
+    // isso fechava/voltava o checkout para a etapa 1 sem motivo.
+    if (!checkoutOpen) { wasOpenRef.current = false; return; }
+    if (wasOpenRef.current) return; // já estava aberto: mudança de dado, não reabrir
+    wasOpenRef.current = true;
     setStep(1);
     setForm(customer ?? EMPTY);
     setErrors({});
@@ -103,7 +109,7 @@ export function CheckoutSheet() {
       if (match) setNeighborhoodId(match.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkoutOpen, customer]);
+  }, [checkoutOpen]);
 
   const set = (k: keyof CustomerData, v: string) =>
     setForm((f) => ({ ...f, [k]: v }));
