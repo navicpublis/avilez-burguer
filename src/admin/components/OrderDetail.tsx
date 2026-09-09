@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { X, MapPin, Phone, MessageCircle, Pencil, Trash2 } from "lucide-react";
+import { X, MapPin, Phone, MessageCircle, Pencil, Trash2, Printer } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/format";
+import { printOrder } from "@/admin/components/printOrder";
 import { WHATSAPP_NUMBER, type CustomerData } from "@/services/orders";
 import {
   updateStatus,
@@ -120,6 +121,15 @@ export function OrderDetail({
             <div className="text-xs text-muted-foreground">{created}</div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => printOrder(order)}
+              aria-label="Imprimir pedido"
+              title="Imprimir pedido"
+              className="flex size-9 items-center justify-center rounded-full bg-secondary hover:bg-accent"
+            >
+              <Printer className="size-4" />
+            </button>
             {!editing && (
               <button
                 type="button"
@@ -150,15 +160,14 @@ export function OrderDetail({
             </p>
           )}
 
-          {/* mudança de status */}
-          {order.status !== "cancelado" && (
-            <div className="mt-4">
-              <div className="mb-2 text-[0.72rem] font-bold uppercase tracking-wider text-muted-foreground">
-                Alterar status
-              </div>
-              <StatusButtons order={order} />
+          {/* mudança de status — sempre disponível p/ o Admin corrigir cliques
+              errados, inclusive reverter "entregue" ou "cancelado". */}
+          <div className="mt-4">
+            <div className="mb-2 text-[0.72rem] font-bold uppercase tracking-wider text-muted-foreground">
+              Alterar status
             </div>
-          )}
+            <StatusButtons order={order} />
+          </div>
 
           {/* cliente — visualização ou edição */}
           <div className="mt-6 rounded-lg border border-border bg-secondary p-4">
