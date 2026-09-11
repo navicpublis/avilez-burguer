@@ -18,6 +18,20 @@ const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
 export const isSupabaseConfigured = Boolean(url && anonKey);
 
+/**
+ * MODO EMERGÊNCIA (VITE_EMERGENCY_MODE=true).
+ * Quando ligado, o FLUXO DO CLIENTE (cardápio→carrinho→checkout→WhatsApp) para
+ * de depender da Supabase: usa os dados locais que já existem no projeto (seed
+ * do catálogo e das zonas) e finaliza direto no WhatsApp, sem chamar RPCs.
+ * O Admin (login/pedidos/estoque/relatórios) segue usando a Supabase normalmente
+ * — este flag NÃO altera isSupabaseConfigured. Desligue com VITE_EMERGENCY_MODE=false.
+ */
+export const emergencyMode =
+  String(import.meta.env.VITE_EMERGENCY_MODE ?? "").toLowerCase() === "true";
+
+/** O fluxo do CLIENTE deve usar o backend? (não, em modo emergência). */
+export const clientUsesBackend = isSupabaseConfigured && !emergencyMode;
+
 export const supabase = isSupabaseConfigured
   ? createClient(url!, anonKey!, {
       auth: {

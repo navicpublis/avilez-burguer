@@ -101,6 +101,11 @@ export function CartSheet() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="font-display text-[0.95rem] font-bold">{p.name}</div>
+                      {item.combo && (
+                        <div className="mt-0.5 inline-flex items-center gap-1.5 rounded-full bg-primary/15 px-2 py-0.5 text-[0.72rem] font-bold text-primary">
+                          Combo · Batata + Refri lata
+                        </div>
+                      )}
                       <div className="mt-0.5 text-[0.78rem] text-muted-foreground">
                         {formatCurrency(unitPrice(item))} cada
                       </div>

@@ -11,7 +11,7 @@ import {
 } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/format";
-import { findProduct, findAddon } from "@/services/catalog-menu";
+import { findProduct, findAddon, COMBO_PRICE, COMBO_LABEL } from "@/services/catalog-menu";
 import {
   type CustomerData,
   type PaymentMethod,
@@ -24,7 +24,7 @@ import {
   placeRemoteOrder,
   type RemoteOrderPayload,
 } from "@/services/orders";
-import { isSupabaseConfigured } from "@/lib/supabase";
+import { clientUsesBackend, emergencyMode } from "@/lib/supabase";
 import { useShop } from "@/store/shop-context";
 import { useNeighborhoods, useSettings } from "@/hooks";
 
@@ -154,6 +154,7 @@ export function CheckoutSheet() {
       cart.map((it) => {
         const p = findProduct(it.id);
         const addons = it.addons.map((a) => findAddon(a)?.name ?? a);
+        if (it.combo) addons.unshift(`Combo (${COMBO_LABEL})`);
         const u = unitPrice(it);
         return {
           name: p?.name ?? it.id,
@@ -201,9 +202,12 @@ export function CheckoutSheet() {
     let tracking = trackingUrl(localId);
 
     try {
-      // Com Supabase ativo: o pedido é SALVO NO BANCO antes de abrir o WhatsApp.
+      // Com backend ativo: o pedido é SALVO NO BANCO antes de abrir o WhatsApp.
       // O servidor calcula taxa/desconto e devolve order_number + public_token.
-      if (isSupabaseConfigured) {
+      // Em MODO EMERGÊNCIA (clientUsesBackend=false) este bloco é PULADO: o
+      // pedido é montado localmente e enviado direto pelo WhatsApp, sem tocar
+      // na Supabase (nem RPC, nem Auth, nem Storage).
+      if (clientUsesBackend) {
         const payload: RemoteOrderPayload = {
           customer: { name: form.name, phone: form.phone },
           address: {
@@ -217,16 +221,19 @@ export function CheckoutSheet() {
           customer_notes: notes.trim(),
           items: cart.map((it) => {
             const p = findProduct(it.id);
+            const addons = it.addons.map((a) => {
+              const ad = findAddon(a);
+              return { name: ad?.name ?? a, price: ad?.price ?? 0 };
+            });
+            // combo = adicional dinâmico (a RPC soma ao unit_price base)
+            if (it.combo) addons.unshift({ name: `Combo (${COMBO_LABEL})`, price: COMBO_PRICE });
             return {
               product_id: it.id,
               name: p?.name ?? it.id,
               unit_price: p?.price ?? 0, // base; a RPC soma os adicionais
               quantity: it.qty,
               notes: it.obs,
-              addons: it.addons.map((a) => {
-                const ad = findAddon(a);
-                return { name: ad?.name ?? a, price: ad?.price ?? 0 };
-              }),
+              addons,
             };
           }),
         };
@@ -322,6 +329,11 @@ export function CheckoutSheet() {
           {/* PASSO 1 — Dados do cliente */}
           {step === 1 && (
             <div className="flex flex-col gap-4">
+              {emergencyMode && (
+                <p className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2.5 text-[0.82rem] text-muted-foreground">
+                  Pedidos online funcionando normalmente pelo WhatsApp.
+                </p>
+              )}
               <Field label="Nome" error={errors.name}>
                 <input
                   className={inputCls(errors.name)}
@@ -472,6 +484,12 @@ export function CheckoutSheet() {
                 </div>
               ))}
 
+              {emergencyMode ? (
+                <p className="mt-1 rounded-md border border-border bg-secondary px-3 py-2.5 text-[0.8rem] text-muted-foreground">
+                  Cupons temporariamente indisponíveis.
+                </p>
+              ) : (
+                <>
               <div className="mt-1 flex gap-2">
                 <input
                   value={couponCode}
@@ -492,6 +510,8 @@ export function CheckoutSheet() {
                 <p className={cn("text-xs font-medium", couponNotice.ok ? "text-emerald-400" : "text-red-400")}>
                   {couponNotice.msg}
                 </p>
+              )}
+                </>
               )}
 
               <div className="mt-2 flex flex-col gap-2">
@@ -529,12 +549,16 @@ export function CheckoutSheet() {
               <div className="w-full rounded-lg border border-border bg-secondary p-4 text-left">
                 <div className="text-[0.78rem] font-bold uppercase tracking-wider text-muted-foreground">Pedido</div>
                 <div className="font-display text-lg font-extrabold">{placed.id}</div>
-                <div className="mt-2 text-[0.78rem] font-bold uppercase tracking-wider text-muted-foreground">
-                  Acompanhar
-                </div>
-                <a href={placed.trackingUrl} className="break-all text-[0.82rem] text-primary underline">
-                  {placed.trackingUrl}
-                </a>
+                {!emergencyMode && (
+                  <>
+                    <div className="mt-2 text-[0.78rem] font-bold uppercase tracking-wider text-muted-foreground">
+                      Acompanhar
+                    </div>
+                    <a href={placed.trackingUrl} className="break-all text-[0.82rem] text-primary underline">
+                      {placed.trackingUrl}
+                    </a>
+                  </>
+                )}
               </div>
             </div>
           )}

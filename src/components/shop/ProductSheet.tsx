@@ -11,7 +11,7 @@ import {
 } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/format";
-import { findProduct, productAddons, OBS_SUGGESTIONS } from "@/services/catalog-menu";
+import { findProduct, productAddons, OBS_SUGGESTIONS, canBecomeCombo, COMBO_PRICE, COMBO_LABEL } from "@/services/catalog-menu";
 import { useShop } from "@/store/shop-context";
 import { QtyStepper } from "./QtyStepper";
 
@@ -27,12 +27,14 @@ export function ProductSheet() {
   const [qty, setQty] = useState(1);
   const [addons, setAddons] = useState<string[]>([]);
   const [obs, setObs] = useState("");
+  const [combo, setCombo] = useState(false);
 
   // reseta o estado a cada produto aberto
   useEffect(() => {
     setQty(1);
     setAddons([]);
     setObs("");
+    setCombo(false);
   }, [productId]);
 
   if (!product) return null;
@@ -42,7 +44,8 @@ export function ProductSheet() {
     const a = addonList.find((x) => x.id === id);
     return s + (a ? a.price : 0);
   }, 0);
-  const unit = product.price + addonSum;
+  const showCombo = canBecomeCombo(product);
+  const unit = product.price + addonSum + (showCombo && combo ? COMBO_PRICE : 0);
   const total = unit * qty;
 
   function toggleAddon(id: string) {
@@ -54,7 +57,7 @@ export function ProductSheet() {
     setObs((prev) => (prev.trim() ? prev.replace(/\s*$/, "") + ", " + text : text));
   }
   function handleAdd() {
-    add(product!.id, qty, addons, obs);
+    add(product!.id, qty, addons, obs, showCombo && combo);
     closeProduct();
     openCart();
   }
@@ -170,6 +173,43 @@ export function ProductSheet() {
               className="min-h-[4.5rem] w-full resize-y rounded-md border border-border bg-secondary px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none"
             />
           </div>
+
+          {/* Upsell: virar combo (só hambúrgueres tradicionais/artesanais) */}
+          {showCombo && (
+            <div className="mt-6 overflow-hidden rounded-xl border border-primary/40 bg-[linear-gradient(135deg,rgba(253,190,10,0.08),rgba(253,190,10,0.02))]">
+              <div className="flex items-center justify-between gap-3 px-4 pt-4">
+                <div className="min-w-0">
+                  <div className="font-condensed text-xl uppercase tracking-wide text-foreground">Virar combo?</div>
+                  <p className="mt-0.5 text-[0.82rem] text-muted-foreground">Leve seu hambúrguer com {COMBO_LABEL.toLowerCase()}</p>
+                </div>
+                <span className="shrink-0 rounded-full bg-primary px-3 py-1.5 font-display text-sm font-extrabold text-primary-foreground">
+                  + {formatCurrency(COMBO_PRICE)}
+                </span>
+              </div>
+              <div className="flex gap-2 p-4 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setCombo(true)}
+                  className={cn(
+                    "h-11 flex-1 rounded-lg text-sm font-extrabold uppercase tracking-wide transition-[background-color,transform] duration-hover ease-brand active:scale-[0.98]",
+                    combo ? "bg-primary text-primary-foreground" : "bg-primary/90 text-primary-foreground hover:bg-primary"
+                  )}
+                >
+                  {combo ? "Combo adicionado ✓" : "Sim, virar combo"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCombo(false)}
+                  className={cn(
+                    "h-11 flex-1 rounded-lg border text-sm font-bold transition-colors duration-hover ease-brand",
+                    combo ? "border-border text-muted-foreground hover:text-foreground" : "border-primary/50 text-foreground"
+                  )}
+                >
+                  Só o hambúrguer
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Quantidade */}
           <div className="mt-6 flex items-center justify-between">

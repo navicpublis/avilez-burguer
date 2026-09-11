@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/format";
 import type { Product } from "@/services/catalog-menu";
@@ -20,6 +22,7 @@ interface ProductCardProps {
 export function ProductCard({ product, small = false, onSelect }: ProductCardProps) {
   const { id, name, desc, price, image, oldPrice, badge, available } = product;
   const clickable = available && !!onSelect;
+  const [imgFailed, setImgFailed] = useState(false);
 
   const open = () => {
     if (clickable) onSelect!(id);
@@ -53,13 +56,14 @@ export function ProductCard({ product, small = false, onSelect }: ProductCardPro
           small ? "aspect-[4/3]" : "aspect-square"
         )}
       >
-        {image ? (
+        {image && !imgFailed ? (
           <img
             src={image}
             alt={name}
             loading="lazy"
             width={520}
             height={520}
+            onError={() => setImgFailed(true)}
             className="h-full w-full object-cover"
           />
         ) : (

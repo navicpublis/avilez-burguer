@@ -21,7 +21,7 @@ export interface Neighborhood {
 
 import { fetchZones, pushZones } from "@/lib/db";
 import { subscribeZones } from "@/lib/realtime";
-import { isSupabaseConfigured } from "@/lib/supabase";
+import { isSupabaseConfigured, clientUsesBackend } from "@/lib/supabase";
 
 const KEY = "avilez_neighborhoods";
 // cache em memória (API síncrona preservada; Supabase hidrata no load)
@@ -62,9 +62,10 @@ let hydrated = false;
 
 function read(): Neighborhood[] {
   if (cache) return cache;
-  // Com Supabase configurado, o banco é a fonte. Antes de hidratar, devolve
-  // vazio (não semeia os bairros antigos, não grava nada, não faz prune).
-  if (isSupabaseConfigured) {
+  // Com backend ativo, o banco é a fonte. Antes de hidratar, devolve vazio
+  // (não semeia os bairros antigos, não grava nada, não faz prune).
+  // Em modo emergência (clientUsesBackend=false), cai no seed/localStorage local.
+  if (clientUsesBackend) {
     cache = [];
     return cache;
   }
@@ -123,7 +124,7 @@ function hydrateZones() {
     }
   });
 }
-if (isSupabaseConfigured) {
+if (clientUsesBackend) {
   hydrateZones();
   // Realtime: criar/editar/desativar/apagar bairro no Admin reflete no site.
   subscribeZones(hydrateZones);

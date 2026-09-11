@@ -107,3 +107,31 @@ export function productAddons(productId: string): Addon[] {
 
 /** Assina mudanças do catálogo (reexport para conveniência). */
 export const subscribeCatalog = subscribeCatalogStore;
+
+/* ─────────── Upsell "Virar combo?" (adicional dinâmico, sem tocar o banco) ───────────
+ * Todo HAMBÚRGUER (categorias Tradicionais / Artesanais / Hambúrgueres) pode
+ * virar combo somando um valor fixo — acompanha 1 batata + 1 refrigerante lata.
+ * Não cria produto no banco; é só um flag no item do carrinho. NÃO se aplica a
+ * bebidas, sobremesas, acompanhamentos nem combos já existentes. */
+export const COMBO_PRICE = 12;
+export const COMBO_LABEL = "Batata + Refrigerante lata";
+
+/** Nome da categoria de um produto (do catálogo real; "" se não achar). */
+export function categoryNameOf(productId: string): string {
+  const cat = getCatalog();
+  const p = cat.products.find((x) => x.id === productId);
+  if (!p) return "";
+  return cat.categories.find((c) => c.id === p.categoryId)?.name ?? "";
+}
+
+/** É um hambúrguer que pode virar combo? (tradicional/artesanal/hambúrguer,
+ *  nunca combo/bebida/sobremesa/porção). Decide pelo NOME da categoria — assim
+ *  funciona com as categorias reais do banco sem hardcodar ids. */
+export function canBecomeCombo(product: Product): boolean {
+  const name = categoryNameOf(product.id).toLowerCase();
+  if (!name) return false;
+  // exclusões explícitas (combos já existentes, bebidas, etc.)
+  if (/(combo|bebida|refri|drink|sobremesa|doce|sorvete|acompanh|porç|porc|batata)/.test(name)) return false;
+  // inclusões: hambúrgueres tradicionais/artesanais
+  return /(tradicion|artesan|h[aâ]mb[uú]rg|burg|lanche|smash)/.test(name);
+}

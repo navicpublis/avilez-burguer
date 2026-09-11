@@ -157,7 +157,7 @@ import {
   createProductRemote, updateProductRemote,
 } from "@/lib/db";
 import { subscribeCatalog } from "@/lib/realtime";
-import { isSupabaseConfigured } from "@/lib/supabase";
+import { isSupabaseConfigured, clientUsesBackend } from "@/lib/supabase";
 
 // ---------- persistência ----------
 // cache em memória: a API pública continua SÍNCRONA (a UI não muda). Quando o
@@ -323,7 +323,7 @@ function hydrateCatalog() {
     }
   });
 }
-if (isSupabaseConfigured) {
+if (clientUsesBackend) {
   hydrateCatalog();
   // Realtime do catálogo: mudança do Admin reflete no site sem F5 (rebusca).
   subscribeCatalog(hydrateCatalog);

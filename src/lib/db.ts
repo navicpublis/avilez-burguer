@@ -68,7 +68,23 @@ export async function fetchCatalog(): Promise<Catalog | null> {
       supabase!.from("addons").select("*").order("sort_order"),
       supabase!.from("product_addon_groups").select("*"),
     ]);
-    if (cats.error || prods.error || groups.error || adds.error || links.error) return null;
+    if (cats.error || prods.error || groups.error || adds.error || links.error) {
+      // eslint-disable-next-line no-console
+      console.warn("[AVILEZ][catálogo] erro ao ler do Supabase (usando cache local):",
+        cats.error || prods.error || groups.error || adds.error || links.error);
+      return null;
+    }
+    // [DIAGNÓSTICO TEMPORÁRIO] — remover depois de conferir no console do site.
+    // Mostra de onde o catálogo vem e se image_url está chegando do banco novo.
+    try {
+      const list = (prods.data ?? []) as any[];
+      const comImg = list.filter((p) => p.image_url && String(p.image_url).trim()).length;
+      // eslint-disable-next-line no-console
+      console.log(
+        `[AVILEZ][catálogo do Supabase] produtos: ${list.length} | com image_url: ${comImg}` +
+        (list[0] ? ` | exemplo image_url: ${list[0].image_url}` : "")
+      );
+    } catch { /* ignore */ }
     // Supabase é a fonte oficial: se as queries funcionaram, use o que veio do
     // banco MESMO que vazio (não repovoa o cardápio antigo). Só mantém o
     // fallback local em caso de ERRO (tratado no return null acima).

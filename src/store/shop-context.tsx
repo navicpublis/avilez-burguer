@@ -9,10 +9,7 @@ import {
   type ReactNode,
 } from "react";
 
-import {
-  findProduct,
-  findAddon,
-} from "@/services/catalog-menu";
+import { findProduct, findAddon, COMBO_PRICE } from "@/services/catalog-menu";
 import { getNeighborhood } from "@/services/neighborhoods-store";
 import { validateCoupon } from "@/services/coupons-store";
 import type { CustomerData } from "@/services/orders";
@@ -23,6 +20,8 @@ export interface CartItem {
   qty: number;
   addons: string[];
   obs: string;
+  /** Upsell "Virar combo?": soma COMBO_PRICE e acompanha batata + refri. */
+  combo?: boolean;
 }
 
 const STORAGE_KEY = "avilez_cart";
@@ -34,16 +33,16 @@ type CartAction =
   | { type: "remove"; index: number }
   | { type: "clear" };
 
-function signature(id: string, addons: string[], obs: string) {
-  return id + "|" + [...addons].sort().join(",") + "|" + obs.trim();
+function signature(id: string, addons: string[], obs: string, combo?: boolean) {
+  return id + "|" + [...addons].sort().join(",") + "|" + obs.trim() + "|" + (combo ? "combo" : "");
 }
 
 function cartReducer(state: CartItem[], action: CartAction): CartItem[] {
   switch (action.type) {
     case "add": {
-      const sig = signature(action.item.id, action.item.addons, action.item.obs);
+      const sig = signature(action.item.id, action.item.addons, action.item.obs, action.item.combo);
       const idx = state.findIndex(
-        (i) => signature(i.id, i.addons, i.obs) === sig
+        (i) => signature(i.id, i.addons, i.obs, i.combo) === sig
       );
       if (idx >= 0) {
         const next = state.slice();
@@ -87,6 +86,7 @@ function loadCart(): CartItem[] {
         qty: Number.isFinite(Number(it.qty)) && Number(it.qty) > 0 ? Math.floor(Number(it.qty)) : 1,
         addons: Array.isArray(it.addons) ? it.addons.filter((a: unknown) => typeof a === "string") : [],
         obs: typeof it.obs === "string" ? it.obs : "",
+        combo: it.combo === true,
       }));
   } catch {
     return [];
@@ -96,7 +96,7 @@ function loadCart(): CartItem[] {
 // ---------- contexto ----------
 interface ShopValue {
   cart: CartItem[];
-  add: (id: string, qty: number, addons: string[], obs: string) => void;
+  add: (id: string, qty: number, addons: string[], obs: string, combo?: boolean) => void;
   setQty: (index: number, qty: number) => void;
   remove: (index: number) => void;
   clear: () => void;
@@ -170,7 +170,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       const a = findAddon(aid);
       return s + (a ? a.price : 0);
     }, 0);
-    return p.price + add;
+    return p.price + add + (item.combo ? COMBO_PRICE : 0);
   };
 
   const value = useMemo<ShopValue>(() => {
@@ -186,8 +186,8 @@ export function ShopProvider({ children }: { children: ReactNode }) {
 
     return {
       cart,
-      add: (id, qty, addons, obs) =>
-        dispatch({ type: "add", item: { id, qty, addons, obs: obs.trim() } }),
+      add: (id, qty, addons, obs, combo) =>
+        dispatch({ type: "add", item: { id, qty, addons, obs: obs.trim(), combo } }),
       setQty: (index, qty) => dispatch({ type: "setQty", index, qty }),
       remove: (index) => dispatch({ type: "remove", index }),
       clear: () => {
