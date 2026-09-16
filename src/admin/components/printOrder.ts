@@ -37,13 +37,18 @@ export function printOrder(order: ManagedOrder): void {
 
   const itensHtml = order.items
     .map((it) => {
-      const addons = it.addons.length
-        ? `<div class="add">${it.addons.map((a) => `+ ${esc(a)}`).join("<br>")}</div>`
-        : "";
       const obs = it.obs?.trim() ? `<div class="obs">Obs.: ${esc(it.obs.trim())}</div>` : "";
+      // adicionais reais do item (inclui "Combo (...)") com o valor adicional.
+      // Se não houver preço detalhado, mostra só o nome. Sem combo, nada aparece.
+      const detailed = it.addonsDetailed && it.addonsDetailed.length ? it.addonsDetailed : null;
+      const addons = detailed
+        ? detailed.map((a) =>
+            `<div class="add"><span>+ ${esc(a.name)}</span>${a.price ? `<span class="addv">+ ${formatCurrency(a.price)}</span>` : ""}</div>`
+          ).join("")
+        : it.addons.map((a) => `<div class="add"><span>+ ${esc(a)}</span></div>`).join("");
       return `<tr>
         <td class="q">${it.qty}x</td>
-        <td>${esc(it.name)}${addons}${obs}</td>
+        <td>${esc(it.name)}${obs}${addons}</td>
         <td class="v">${formatCurrency(it.lineTotal)}</td>
       </tr>`;
     })
@@ -74,7 +79,8 @@ export function printOrder(order: ManagedOrder): void {
   td { vertical-align: top; padding: 3px 0; }
   td.q { width: 34px; font-weight: 700; }
   td.v { text-align: right; white-space: nowrap; }
-  .add { color: #444; font-size: 12px; margin-top: 2px; }
+  .add { color: #444; font-size: 12px; margin-top: 2px; display: flex; justify-content: space-between; gap: 8px; }
+  .addv { white-space: nowrap; }
   .obs { color: #444; font-size: 12px; font-style: italic; margin-top: 2px; }
   .items td { border-bottom: 1px dashed #ddd; }
   .totals { margin-top: 6px; }

@@ -27,6 +27,8 @@ export interface OrderItem {
   obs: string;
   unitPrice: number;
   lineTotal: number;
+  /** Adicionais com preço (Admin/impressão). Opcional — o WhatsApp usa `addons`. */
+  addonsDetailed?: { name: string; price: number }[];
 }
 
 /**

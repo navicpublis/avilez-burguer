@@ -243,7 +243,18 @@ export function OrderDetail({
               <div key={i} className="flex justify-between gap-2 border-b border-border py-2.5 last:border-0">
                 <div className="min-w-0">
                   <div className="text-sm font-bold">{it.qty}× {it.name}</div>
-                  {it.addons.length > 0 && <div className="text-xs text-muted-foreground">+ {it.addons.join(", ")}</div>}
+                  {it.addonsDetailed && it.addonsDetailed.length > 0 ? (
+                    <div className="mt-0.5 space-y-0.5">
+                      {it.addonsDetailed.map((a, k) => (
+                        <div key={k} className="flex justify-between gap-2 text-xs text-muted-foreground">
+                          <span>+ {a.name}</span>
+                          {a.price > 0 && <span>+ {formatCurrency(a.price)}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    it.addons.length > 0 && <div className="text-xs text-muted-foreground">+ {it.addons.join(", ")}</div>
+                  )}
                   {it.obs && <div className="text-xs italic text-muted-foreground">“{it.obs}”</div>}
                 </div>
                 <div className="shrink-0 font-display text-sm font-bold">{formatCurrency(it.lineTotal)}</div>

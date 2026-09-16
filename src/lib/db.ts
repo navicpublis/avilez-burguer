@@ -371,6 +371,18 @@ export async function fetchAdminOrders(): Promise<ManagedOrder[] | null> {
       ids.length ? s.from("order_status_history").select("*").in("order_id", ids) : Promise.resolve({ data: [] as any[] }),
       addrIds.length ? s.from("customer_addresses").select("*").in("id", addrIds) : Promise.resolve({ data: [] as any[] }),
     ]);
+    // adicionais de cada item (inclui o "Combo (...)"), lidos do snapshot salvo
+    // no pedido — mesma fonte que o WhatsApp usou ao criar o pedido.
+    const itemIds = (items.data ?? []).map((it: any) => it.id);
+    const itemAddons = itemIds.length
+      ? await s.from("order_item_addons").select("*").in("order_item_id", itemIds)
+      : { data: [] as any[] };
+    const addonsByItem = new Map<string, { name: string; price: number }[]>();
+    (itemAddons.data ?? []).forEach((a: any) => {
+      const list = addonsByItem.get(a.order_item_id) ?? [];
+      list.push({ name: a.addon_name_snapshot, price: Number(a.price_snapshot) || 0 });
+      addonsByItem.set(a.order_item_id, list);
+    });
     const addrById = new Map<string, any>();
     (addrs.data ?? []).forEach((a: any) => addrById.set(a.id, a));
     const itemsByOrder = new Map<string, any[]>();
@@ -397,7 +409,10 @@ export async function fetchAdminOrders(): Promise<ManagedOrder[] | null> {
       },
       payment: o.payment_method, changeFor: o.change_for != null ? String(o.change_for) : null,
       items: (itemsByOrder.get(o.id) ?? []).map((it: any) => ({
-        name: it.product_name_snapshot, qty: it.quantity, addons: [], obs: it.notes ?? "",
+        name: it.product_name_snapshot, qty: it.quantity,
+        addons: (addonsByItem.get(it.id) ?? []).map((a) => a.name),
+        addonsDetailed: addonsByItem.get(it.id) ?? [],
+        obs: it.notes ?? "",
         unitPrice: Number(it.unit_price) || 0, lineTotal: Number(it.subtotal) || 0,
       })),
       subtotal: Number(o.subtotal) || 0, fee: Number(o.delivery_fee) || 0,
